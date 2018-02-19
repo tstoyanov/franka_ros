@@ -9,6 +9,11 @@
       </joint>
     </xacro:unless>
     <link name="${ns}_hand">
+      <inertial>
+        <mass value="0.1"/>
+        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
+        <origin/>
+      </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
@@ -26,6 +31,11 @@
       </collision>
     </link>
     <link name="${ns}_leftfinger">
+      <inertial>
+        <mass value="0.01"/>
+        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
+        <origin/>
+      </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
@@ -42,6 +52,11 @@
       </collision>
     </link>
     <link name="${ns}_rightfinger">
+      <inertial>
+        <mass value="0.01"/>
+        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
+        <origin/>
+      </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
