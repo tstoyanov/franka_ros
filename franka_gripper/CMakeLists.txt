@@ -14,7 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
 )
 
-find_package(Franka 0.2.0 REQUIRED)
+find_package(Franka 0.3.0 REQUIRED)
 
 add_action_files(
   DIRECTORY action
@@ -22,6 +22,11 @@ add_action_files(
         Homing.action
         Stop.action
         Move.action
+)
+
+add_message_files(
+  DIRECTORY msg
+  FILES GraspEpsilon.msg
 )
 
 generate_messages(DEPENDENCIES actionlib_msgs)
@@ -50,12 +55,15 @@ add_dependencies(franka_gripper
 )
 
 target_link_libraries(franka_gripper
-   ${catkin_LIBRARIES}
-   Franka::Franka
+  ${Franka_LIBRARIES}
+  ${catkin_LIBRARIES}
 )
 
-target_include_directories(franka_gripper PUBLIC
+target_include_directories(franka_gripper SYSTEM PUBLIC
+  ${Franka_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
+)
+target_include_directories(franka_gripper PUBLIC
   include
 )
 
@@ -74,9 +82,8 @@ target_link_libraries(franka_gripper_node
    franka_gripper
 )
 
-target_include_directories(franka_gripper_node PUBLIC
+target_include_directories(franka_gripper_node SYSTEM PUBLIC
   ${catkin_INCLUDE_DIRS}
-  include
 )
 
 ## Installation

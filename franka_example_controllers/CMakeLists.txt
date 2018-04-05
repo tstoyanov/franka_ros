@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(Eigen3 REQUIRED)
-find_package(Franka 0.2.0 REQUIRED)
+find_package(Franka 0.3.0 REQUIRED)
 
 add_message_files(FILES
   JointTorqueComparison.msg
@@ -48,8 +48,6 @@ catkin_package(
   DEPENDS Franka
 )
 
-include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
-
 add_library(franka_example_controllers
   src/cartesian_pose_example_controller.cpp
   src/cartesian_velocity_example_controller.cpp
@@ -69,9 +67,18 @@ add_dependencies(franka_example_controllers
   ${PROJECT_NAME}_gencfg
 )
 
-target_link_libraries(franka_example_controllers
+target_link_libraries(franka_example_controllers PUBLIC
+  ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
-  Franka::Franka
+)
+
+target_include_directories(franka_example_controllers SYSTEM PUBLIC
+  ${Franka_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
+target_include_directories(franka_example_controllers PUBLIC
+  include
 )
 
 ## Installation
@@ -90,7 +97,7 @@ install(FILES franka_example_controllers_plugin.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 catkin_install_python(
-  PROGRAMS scripts/interactive_marker.py
+  PROGRAMS scripts/interactive_marker.py scripts/move_to_start.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

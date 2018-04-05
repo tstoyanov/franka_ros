@@ -1,5 +1,34 @@
 # CHANGELOG
 
+## 0.4.0 - 2018-03-26
+
+Requires `libfranka` >= 0.3.0
+
+  * **BREAKING** Removed `arm_id` and default `robot_ip` from launchfiles
+  * **BREAKING** Changed namespace of `franka_control` controller manager
+  * **BREAKING** Changed behavior of `gripper_action` for compatibility with MoveIt
+  * Changes in `panda_moveit_config`:
+    * Updated joint limits from URDF
+    * Removed `home` poses
+    * Fixed fake execution
+    * Add `load_gripper` argument (default: `true`) to `panda_moveit.launch`
+    * Conditionally load controllers/SRDFs based on `load_gripper`
+    * Add gripper controller configuration (requires running `franka_gripper_node`)
+  * Added `mimic` tag for gripper fingers to URDF and fixed velocity limits
+
+## 0.3.0 - 2018-02-22
+
+Requires `libfranka` >= 0.3.0
+
+  * **BREAKING** Changed signatures in `franka_hw::FrankaModelHandle`
+  * **BREAKING** Added epsilon parameters to `franka_gripper/Grasp` action
+  * Added Collada meshes for Panda and Hand
+  * Added missing dependencies to `panda_moveit_config` and `franka_example_controllers`
+  * Fixed linker errors when building with `-DFranka_DIR` while an older version of
+    `ros-kinetic-libfranka` is installed
+  * Added gripper joint state publisher to `franka_visualization`
+  * Moved `move_to_start.py` example script to `franka_example_controllers`
+
 ## 0.2.2 - 2018-01-31
 
 Requires `libfranka` >= 0.2.0

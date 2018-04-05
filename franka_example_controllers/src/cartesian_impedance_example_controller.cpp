@@ -31,8 +31,7 @@ bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robo
   if (!node_handle.getParam("joint_names", joint_names) || joint_names.size() != 7) {
     ROS_ERROR(
         "CartesianImpedanceExampleController: Invalid or no joint_names parameters provided, "
-        "aborting "
-        "controller init!");
+        "aborting controller init!");
     return false;
   }
 
@@ -113,7 +112,7 @@ void CartesianImpedanceExampleController::starting(const ros::Time& /*time*/) {
   franka::RobotState initial_state = state_handle_->getRobotState();
   // get jacobian
   std::array<double, 42> jacobian_array =
-      model_handle_->getZeroJacobian(franka::Frame::kEndEffector, initial_state);
+      model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
   // convert to eigen
   Eigen::Map<Eigen::Matrix<double, 6, 7> > jacobian(jacobian_array.data());
   Eigen::Map<Eigen::Matrix<double, 7, 1> > dq_initial(initial_state.dq.data());
@@ -134,10 +133,9 @@ void CartesianImpedanceExampleController::update(const ros::Time& /*time*/,
                                                  const ros::Duration& /*period*/) {
   // get state variables
   franka::RobotState robot_state = state_handle_->getRobotState();
-  std::array<double, 7> coriolis_array =
-      model_handle_->getCoriolis(robot_state.I_total, robot_state.m_total, robot_state.F_x_Ctotal);
+  std::array<double, 7> coriolis_array = model_handle_->getCoriolis();
   std::array<double, 42> jacobian_array =
-      model_handle_->getZeroJacobian(franka::Frame::kEndEffector, robot_state);
+      model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
 
   // convert to Eigen
   Eigen::Map<Eigen::Matrix<double, 7, 1> > coriolis(coriolis_array.data());
