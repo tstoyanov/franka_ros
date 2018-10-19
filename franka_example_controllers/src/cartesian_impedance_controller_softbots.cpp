@@ -1,6 +1,6 @@
 // Copyright (c) 2017 Franka Emika GmbH
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
-#include <franka_example_controllers/cartesian_impedance_example_controller.h>
+#include <franka_example_controllers/cartesian_impedance_controller_softbots.h>
 
 #include <cmath>
 
@@ -13,24 +13,38 @@
 
 namespace franka_example_controllers {
 
-bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robot_hw,
+
+bool CartesianImpedanceControllerSoftbots::init(hardware_interface::RobotHW* robot_hw,
                                                ros::NodeHandle& node_handle) {
   std::vector<double> cartesian_stiffness_vector;
   std::vector<double> cartesian_damping_vector;
+  
+  // Name space extraction for add a prefix to the topic name
+  int n = 0;
+  std::string name_space;
+  name_space = node_handle.getNamespace();
+  n = name_space.find("/", 2);
+  name_space = name_space.substr(0,n);
 
   sub_equilibrium_pose_ = node_handle.subscribe(
-      "/equilibrium_pose", 20, &CartesianImpedanceExampleController::equilibriumPoseCallback, this,
+      name_space+"/equilibrium_pose", 1, &CartesianImpedanceControllerSoftbots::equilibriumPoseCallback, this,
       ros::TransportHints().reliable().tcpNoDelay());
+
+  sub_desired_stiffness_ = node_handle.subscribe(
+      name_space+"/desired_stiffness", 1, &CartesianImpedanceControllerSoftbots::desiredStiffnessCallback, this,
+      ros::TransportHints().reliable().tcpNoDelay());
+
+  pub_endeffector_pose_ = node_handle.advertise<geometry_msgs::PoseStamped>("/franka_ee_pose", 1);
 
   std::string arm_id;
   if (!node_handle.getParam("arm_id", arm_id)) {
-    ROS_ERROR_STREAM("CartesianImpedanceExampleController: Could not read parameter arm_id");
+    ROS_ERROR_STREAM("CartesianImpedanceControllerSoftbots: Could not read parameter arm_id");
     return false;
   }
   std::vector<std::string> joint_names;
   if (!node_handle.getParam("joint_names", joint_names) || joint_names.size() != 7) {
     ROS_ERROR(
-        "CartesianImpedanceExampleController: Invalid or no joint_names parameters provided, "
+        "CartesianImpedanceControllerSoftbots: Invalid or no joint_names parameters provided, "
         "aborting controller init!");
     return false;
   }
@@ -39,7 +53,7 @@ bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robo
       robot_hw->get<franka_hw::FrankaModelInterface>();
   if (model_interface == nullptr) {
     ROS_ERROR_STREAM(
-        "CartesianImpedanceExampleController: Error getting model interface from hardware");
+        "CartesianImpedanceControllerSoftbots: Error getting model interface from hardware");
     return false;
   }
   try {
@@ -47,7 +61,7 @@ bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robo
         new franka_hw::FrankaModelHandle(model_interface->getHandle(arm_id + "_model")));
   } catch (hardware_interface::HardwareInterfaceException& ex) {
     ROS_ERROR_STREAM(
-        "CartesianImpedanceExampleController: Exception getting model handle from interface: "
+        "CartesianImpedanceControllerSoftbots: Exception getting model handle from interface: "
         << ex.what());
     return false;
   }
@@ -56,7 +70,7 @@ bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robo
       robot_hw->get<franka_hw::FrankaStateInterface>();
   if (state_interface == nullptr) {
     ROS_ERROR_STREAM(
-        "CartesianImpedanceExampleController: Error getting state interface from hardware");
+        "CartesianImpedanceControllerSoftbots: Error getting state interface from hardware");
     return false;
   }
   try {
@@ -64,7 +78,7 @@ bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robo
         new franka_hw::FrankaStateHandle(state_interface->getHandle(arm_id + "_robot")));
   } catch (hardware_interface::HardwareInterfaceException& ex) {
     ROS_ERROR_STREAM(
-        "CartesianImpedanceExampleController: Exception getting state handle from interface: "
+        "CartesianImpedanceControllerSoftbots: Exception getting state handle from interface: "
         << ex.what());
     return false;
   }
@@ -73,7 +87,7 @@ bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robo
       robot_hw->get<hardware_interface::EffortJointInterface>();
   if (effort_joint_interface == nullptr) {
     ROS_ERROR_STREAM(
-        "CartesianImpedanceExampleController: Error getting effort joint interface from hardware");
+        "CartesianImpedanceControllerSoftbots: Error getting effort joint interface from hardware");
     return false;
   }
   for (size_t i = 0; i < 7; ++i) {
@@ -81,32 +95,35 @@ bool CartesianImpedanceExampleController::init(hardware_interface::RobotHW* robo
       joint_handles_.push_back(effort_joint_interface->getHandle(joint_names[i]));
     } catch (const hardware_interface::HardwareInterfaceException& ex) {
       ROS_ERROR_STREAM(
-          "CartesianImpedanceExampleController: Exception getting joint handles: " << ex.what());
+          "CartesianImpedanceControllerSoftbots: Exception getting joint handles: " << ex.what());
       return false;
     }
   }
-
-  dynamic_reconfigure_compliance_param_node_ =
-      ros::NodeHandle("dynamic_reconfigure_compliance_param_node");
-
-  dynamic_server_compliance_param_.reset(
-      new dynamic_reconfigure::Server<franka_example_controllers::compliance_paramConfig>(
-          dynamic_reconfigure_compliance_param_node_));
-  dynamic_server_compliance_param_->setCallback(
-      boost::bind(&CartesianImpedanceExampleController::complianceParamCallback, this, _1, _2));
 
   position_d_.setZero();
   orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
   position_d_target_.setZero();
   orientation_d_target_.coeffs() << 0.0, 0.0, 0.0, 1.0;
 
-  cartesian_stiffness_.setZero();
-  cartesian_damping_.setZero();
+  cartesian_stiffness_.setIdentity();
+  cartesian_stiffness_target_.setIdentity();
+  cartesian_damping_.setIdentity();
+  cartesian_damping_target_.setIdentity();
+
+  
+  cartesian_stiffness_.topLeftCorner(3, 3) << 200*Eigen::Matrix3d::Identity();
+  cartesian_stiffness_.bottomRightCorner(3, 3) << 20*Eigen::Matrix3d::Identity();
+  cartesian_stiffness_target_ = cartesian_stiffness_;
+  // Damping ratio = 1
+
+  cartesian_damping_.topLeftCorner(3, 3) = 2.0 * sqrt(200)*Eigen::Matrix3d::Identity();
+  cartesian_damping_.bottomRightCorner(3, 3) = 2.0 * sqrt(20)*Eigen::Matrix3d::Identity();
+  cartesian_damping_target_ = cartesian_damping_;
 
   return true;
 }
 
-void CartesianImpedanceExampleController::starting(const ros::Time& /*time*/) {
+void CartesianImpedanceControllerSoftbots::starting(const ros::Time& /*time*/) {
   // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
   // to initial configuration
   franka::RobotState initial_state = state_handle_->getRobotState();
@@ -127,9 +144,10 @@ void CartesianImpedanceExampleController::starting(const ros::Time& /*time*/) {
 
   // set nullspace equilibrium configuration to initial q
   q_d_nullspace_ = q_initial;
+
 }
 
-void CartesianImpedanceExampleController::update(const ros::Time& /*time*/,
+void CartesianImpedanceControllerSoftbots::update(const ros::Time& /*time*/,
                                                  const ros::Duration& /*period*/) {
   // get state variables
   franka::RobotState robot_state = state_handle_->getRobotState();
@@ -148,21 +166,110 @@ void CartesianImpedanceExampleController::update(const ros::Time& /*time*/,
   Eigen::Vector3d position(transform.translation());
   Eigen::Quaterniond orientation(transform.linear());
 
+
+  geometry_msgs::PoseStamped msg_endeffector_pose_;
+
+  msg_endeffector_pose_.pose.position.x = position(0);
+  msg_endeffector_pose_.pose.position.y = position(1);
+  msg_endeffector_pose_.pose.position.z = position(2);
+  msg_endeffector_pose_.pose.orientation.x = orientation.x();
+  msg_endeffector_pose_.pose.orientation.y = orientation.y();
+  msg_endeffector_pose_.pose.orientation.z = orientation.z();
+  msg_endeffector_pose_.pose.orientation.w = orientation.w();
+
+  pub_endeffector_pose_.publish(msg_endeffector_pose_);
+
+
+ 
+  /*std::cout << "POSITION x= " << position(0)
+            << " y=" << position(1)
+            << " z=" << position(2) << std::endl;*/
+
+
+  /*std::cout << "ACTUAL ORIENTATION QUATERNION x= " << orientation.x()
+            << " y=" << orientation.y()
+            << " z=" << orientation.z()
+            << " w= " << orientation.w() << std::endl;*/
+
+  // std::cout << "ACTUAL Euler x= " << angle.x()
+  //            << " y=" << angle.y()
+  //           << " z=" << angle.z() << std::endl;
+  
+  // Eigen::AngleAxisd aa_orientation(orientation);
+  // std::cout << "ORIENTATION AA x= " << aa_orientation.axis()(0)
+  //           << " y=" << aa_orientation.axis()(1)
+  //           << " z=" << aa_orientation.axis()(2)
+  //           << " angle= " << aa_orientation.angle() << std::endl;
+
+
+  /*Eigen::AngleAxisd aa_orientation_recieved(orientation_d_target_);
+  std::cout << "ORIENTATION AA RECEIVED x= " << aa_orientation_recieved.axis()(0)
+            << " y=" << aa_orientation_recieved.axis()(1)
+            << " z=" << aa_orientation_recieved.axis()(2)
+            << " angle= " << aa_orientation_recieved.angle() << std::endl;*/
+
   // compute error to desired pose
   // position error
   Eigen::Matrix<double, 6, 1> error;
+  Eigen::Matrix<double, 6, 1> error_prev;
+  Eigen::Matrix<double, 6, 1> dot_error;
+  Eigen::Matrix<double, 6, 1> dot_error_filt;
+
   error.head(3) << position - position_d_;
+
+  
+
 
   // orientation error
   if (orientation_d_.coeffs().dot(orientation.coeffs()) < 0.0) {
     orientation.coeffs() << -orientation.coeffs();
   }
+
+
   // "difference" quaternion
   Eigen::Quaterniond error_quaternion(orientation * orientation_d_.inverse());
   // convert to axis angle
   Eigen::AngleAxisd error_quaternion_angle_axis(error_quaternion);
+
+  static Eigen::AngleAxisd error_quaternion_angle_axis_prev(error_quaternion);
   // compute "orientation error"
+
+  while( abs(error_quaternion_angle_axis.angle()) > M_PI/2)
+  {  
+    if ( error_quaternion_angle_axis.angle() > M_PI/2 )
+    {
+        error_quaternion_angle_axis.angle() = error_quaternion_angle_axis.angle() - M_PI/2;
+    }
+    else if ( error_quaternion_angle_axis.angle() < -M_PI/2)
+    {
+        error_quaternion_angle_axis.angle() = error_quaternion_angle_axis.angle() + M_PI/2;
+    }
+  }
+
   error.tail(3) << error_quaternion_angle_axis.axis() * error_quaternion_angle_axis.angle();
+
+
+  /*nowTime = ros::Time::now();
+  if(first_cycle)
+  {
+    lastTime = nowTime;
+    error_prev = error;
+    dot_error.setZero();
+    dot_error_filt.setZero();
+    first_cycle = false;
+  }
+  else
+  {
+    deltaT = nowTime - lastTime;
+    lastTime = nowTime;
+
+    dot_error = (error - error_prev) / deltaT.toSec();
+    error_prev = error;
+  } 
+
+  dot_error_filt = 0.00005 * dot_error + (1.0 - 0.00005) * dot_error_filt;
+
+  std::cout << deltaT.toSec() << " x=" << dot_error_filt(3) << " y=" << dot_error_filt(4) << " z=" << dot_error_filt(5) << std::endl;*/
 
   // compute control
   // allocate variables
@@ -174,8 +281,10 @@ void CartesianImpedanceExampleController::update(const ros::Time& /*time*/,
   pseudoInverse(jacobian.transpose(), jacobian_transpose_pinv);
 
   // Cartesian PD control with damping ratio = 1
-  tau_task << jacobian.transpose() *
-                  (-cartesian_stiffness_ * error - cartesian_damping_ * (jacobian * dq));
+  //tau_task << jacobian.transpose() *
+                  (-cartesian_stiffness_ * error - cartesian_damping_ * dot_error);
+
+  tau_task << jacobian.transpose() * (-cartesian_stiffness_ * error - cartesian_damping_ * (jacobian * dq));
   // nullspace PD control with damping ratio = 1
   tau_nullspace << (Eigen::MatrixXd::Identity(7, 7) -
                     jacobian.transpose() * jacobian_transpose_pinv) *
@@ -198,16 +307,18 @@ void CartesianImpedanceExampleController::update(const ros::Time& /*time*/,
   nullspace_stiffness_ =
       filter_params_ * nullspace_stiffness_target_ + (1.0 - filter_params_) * nullspace_stiffness_;
   position_d_ = filter_params_ * position_d_target_ + (1.0 - filter_params_) * position_d_;
-  Eigen::AngleAxisd aa_orientation_d(orientation_d_);
+  /*Eigen::AngleAxisd aa_orientation_d(orientation_d_);
   Eigen::AngleAxisd aa_orientation_d_target(orientation_d_target_);
   aa_orientation_d.axis() = filter_params_ * aa_orientation_d_target.axis() +
                             (1.0 - filter_params_) * aa_orientation_d.axis();
   aa_orientation_d.angle() = filter_params_ * aa_orientation_d_target.angle() +
                              (1.0 - filter_params_) * aa_orientation_d.angle();
-  orientation_d_ = Eigen::Quaterniond(aa_orientation_d);
+  orientation_d_ = Eigen::Quaterniond(aa_orientation_d);*/
+
+  orientation_d_ = orientation_d_target_;
 }
 
-Eigen::Matrix<double, 7, 1> CartesianImpedanceExampleController::saturateTorqueRate(
+Eigen::Matrix<double, 7, 1> CartesianImpedanceControllerSoftbots::saturateTorqueRate(
     const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
     const Eigen::Matrix<double, 7, 1>& tau_J_d) {  // NOLINT (readability-identifier-naming)
   Eigen::Matrix<double, 7, 1> tau_d_saturated{};
@@ -219,35 +330,67 @@ Eigen::Matrix<double, 7, 1> CartesianImpedanceExampleController::saturateTorqueR
   return tau_d_saturated;
 }
 
-void CartesianImpedanceExampleController::complianceParamCallback(
-    franka_example_controllers::compliance_paramConfig& config,
-    uint32_t /*level*/) {
+void CartesianImpedanceControllerSoftbots::desiredStiffnessCallback(
+    const geometry_msgs::Vector3StampedConstPtr& msg) { //sono riferite al globale
+
   cartesian_stiffness_target_.setIdentity();
-  cartesian_stiffness_target_.topLeftCorner(3, 3)
-      << config.translational_stiffness * Eigen::Matrix3d::Identity();
-  cartesian_stiffness_target_.bottomRightCorner(3, 3)
-      << config.rotational_stiffness * Eigen::Matrix3d::Identity();
+  cartesian_stiffness_target_(0,0) = msg->vector.x;
+  cartesian_stiffness_target_(1,1) = msg->vector.y;
+  cartesian_stiffness_target_(2,2) = msg->vector.z;
+  
+  //cartesian_stiffness_target_.bottomRightCorner(3, 3) << cartesian_stiffness_target_.topLeftCorner(3, 3)/10;
+  
+  cartesian_stiffness_target_(3,3) = msg->vector.x/10;
+  cartesian_stiffness_target_(4,4) = msg->vector.z/10;
+  cartesian_stiffness_target_(5,5) = msg->vector.y/10;
+
+
+
+
+
+
+
   cartesian_damping_target_.setIdentity();
   // Damping ratio = 1
-  cartesian_damping_target_.topLeftCorner(3, 3)
-      << 2.0 * sqrt(config.translational_stiffness) * Eigen::Matrix3d::Identity();
-  cartesian_damping_target_.bottomRightCorner(3, 3)
-      << 2.0 * sqrt(config.rotational_stiffness) * Eigen::Matrix3d::Identity();
-  nullspace_stiffness_target_ = config.nullspace_stiffness;
+
+  cartesian_damping_target_(0,0) = 2.0 * sqrt(msg->vector.x);
+  cartesian_damping_target_(1,1) = 2.0 * sqrt(msg->vector.y);
+  cartesian_damping_target_(2,2) = 2.0 * sqrt(msg->vector.z);
+  
+  cartesian_damping_target_(3,3) = 2.0 * sqrt(msg->vector.x/10);
+  cartesian_damping_target_(4,4) = 2.0 * sqrt(msg->vector.y/10);
+  cartesian_damping_target_(5,5) = 2.0 * sqrt(msg->vector.z/10);
 }
 
-void CartesianImpedanceExampleController::equilibriumPoseCallback(
+void CartesianImpedanceControllerSoftbots::equilibriumPoseCallback(
     const geometry_msgs::PoseStampedConstPtr& msg) {
   position_d_target_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+
   Eigen::Quaterniond last_orientation_d_target(orientation_d_target_);
   orientation_d_target_.coeffs() << msg->pose.orientation.x, msg->pose.orientation.y,
       msg->pose.orientation.z, msg->pose.orientation.w;
+
   if (last_orientation_d_target.coeffs().dot(orientation_d_target_.coeffs()) < 0.0) {
     orientation_d_target_.coeffs() << -orientation_d_target_.coeffs();
   }
+
+  /*std::cout << "POSITION x= " << position_d_target_(0)
+            << " y=" << position_d_target_(1)
+            << " z=" << position_d_target_(2) << std::endl;*/
+
+
+  Eigen::AngleAxisd aa_orientation_recieved(orientation_d_target_);
+  // std::cout << "ORIENTATION AA RECEIVED x= " << aa_orientation_recieved.axis()(0)
+  //           << " y=" << aa_orientation_recieved.axis()(1)
+  //           << " z=" << aa_orientation_recieved.axis()(2)
+  //           << " angle= " << aa_orientation_recieved.angle() << std::endl;
+
+   
+
+
 }
 
 }  // namespace franka_example_controllers
 
-PLUGINLIB_EXPORT_CLASS(franka_example_controllers::CartesianImpedanceExampleController,
+PLUGINLIB_EXPORT_CLASS(franka_example_controllers::CartesianImpedanceControllerSoftbots,
                        controller_interface::ControllerBase)

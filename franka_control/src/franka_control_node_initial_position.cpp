@@ -15,6 +15,7 @@
 
 #include <franka_control/ErrorRecoveryAction.h>
 #include <franka_control/services.h>
+#include <franka_control/examples_common.h>
 
 class ServiceContainer {
  public:
@@ -53,23 +54,29 @@ int main(int argc, char** argv) {
     ROS_ERROR("Invalid or no arm_id parameter provided");
     return 1;
   }
+
+
   franka::Robot robot(robot_ip);
 
-  // Set default collision behavior
-  /*
-  //original
-  robot.setCollisionBehavior(
-      {{20.0, 20.0, 18.0, 18.0, 16.0, 14.0, 12.0}}, {{20.0, 20.0, 18.0, 18.0, 16.0, 14.0, 12.0}},
-      {{20.0, 20.0, 18.0, 18.0, 16.0, 14.0, 12.0}}, {{20.0, 20.0, 18.0, 18.0, 16.0, 14.0, 12.0}},
-      {{20.0, 20.0, 20.0, 25.0, 25.0, 25.0}}, {{20.0, 20.0, 20.0, 25.0, 25.0, 25.0}},
-      {{20.0, 20.0, 20.0, 25.0, 25.0, 25.0}}, {{20.0, 20.0, 20.0, 25.0, 25.0, 25.0}});
-  */
+  // Move to initial Position
+  try {
+    std::array<double, 7> q_goal = {{0, 0, 0, -M_PI_2, 0, M_PI_2, 0}};
 
+    MotionGenerator motion_generator(0.5, q_goal);
+    robot.control(motion_generator);
+    std::cout << "Finished moving to initial joint configuration." << std::endl << std::endl;
+
+  } catch (const franka::Exception& ex) {
+      // print exception
+      std::cout << ex.what() << std::endl;
+  }
+
+  // Set default collision behavior
   robot.setCollisionBehavior(
-      {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0}}, {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0}},
-      {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0}}, {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0, 80.0}},
-      {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0}}, {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0}},
-      {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0}}, {{80.0, 80.0, 80.0, 80.0, 80.0, 80.0}});
+      {{200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0}},
+      {{200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0}},
+      {{200.0, 200.0, 200.0, 200.0, 200.0, 200.0}},
+      {{200.0, 200.0, 200.0, 200.0, 200.0, 200.0}});
 
   std::atomic_bool has_error(false);
 

@@ -50,6 +50,7 @@ catkin_package(
 
 add_library(franka_example_controllers
   src/cartesian_pose_example_controller.cpp
+  src/first_pose_ctrl.cpp
   src/cartesian_velocity_example_controller.cpp
   src/joint_position_example_controller.cpp
   src/joint_velocity_example_controller.cpp
@@ -57,6 +58,8 @@ add_library(franka_example_controllers
   src/joint_impedance_example_controller.cpp
   src/cartesian_impedance_example_controller.cpp
   src/force_example_controller.cpp
+
+  src/cartesian_impedance_controller_softbots.cpp
 )
 
 add_dependencies(franka_example_controllers

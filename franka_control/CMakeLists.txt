@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_msgs
 )
 
+find_package(Eigen3 REQUIRED)
 find_package(Franka 0.3.0 REQUIRED)
 
 add_service_files(FILES
@@ -124,10 +125,35 @@ target_include_directories(franka_control_node SYSTEM PUBLIC
   ${catkin_INCLUDE_DIRS}
 )
 
+
+## franka_control_node_initial_position
+add_executable(franka_control_node_initial_position
+  src/examples_common.cpp src/franka_control_node_initial_position.cpp
+)
+
+add_dependencies(franka_control_node_initial_position
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(franka_control_node_initial_position
+  ${Franka_LIBRARIES}
+  franka_control_services
+  ${catkin_LIBRARIES}
+)
+
+target_include_directories(franka_control_node_initial_position SYSTEM PUBLIC
+  ${Franka_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
+
+
 ## Installation
 install(TARGETS franka_state_controller
                 franka_control_services
                 franka_control_node
+                franka_control_node_initial_position
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -158,6 +184,6 @@ if(CLANG_TOOLS)
   add_format_target(franka_control FILES ${SOURCES} ${HEADERS})
   add_tidy_target(franka_control
     FILES ${SOURCES}
-    DEPENDS franka_control_node franka_state_controller
+    DEPENDS franka_control_node franka_control_node_initial_position franka_state_controller
   )
 endif()

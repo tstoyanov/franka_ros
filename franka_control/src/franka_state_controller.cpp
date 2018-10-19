@@ -141,7 +141,7 @@ FrankaStateController::FrankaStateController()
       publisher_franka_states_(),
       publisher_joint_states_(),
       publisher_external_wrench_(),
-      trigger_publish_(30.0) {}
+      trigger_publish_(1000.0) {}
 
 bool FrankaStateController::init(hardware_interface::RobotHW* robot_hardware,
                                  ros::NodeHandle& root_node_handle,
