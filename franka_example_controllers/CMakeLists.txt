@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(Eigen3 REQUIRED)
-find_package(Franka 0.3.0 REQUIRED)
+find_package(Franka 0.5.0 REQUIRED)
 
 add_message_files(FILES
   JointTorqueComparison.msg
@@ -49,6 +49,7 @@ catkin_package(
 )
 
 add_library(franka_example_controllers
+  src/elbow_example_controller.cpp
   src/cartesian_pose_example_controller.cpp
   src/cartesian_velocity_example_controller.cpp
   src/joint_position_example_controller.cpp

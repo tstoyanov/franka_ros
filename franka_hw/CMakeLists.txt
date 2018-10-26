@@ -9,14 +9,15 @@ find_package(catkin REQUIRED COMPONENTS
   hardware_interface
   joint_limits_interface
   roscpp
+  urdf
 )
 
-find_package(Franka 0.3.0 REQUIRED)
+find_package(Franka 0.5.0 REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES franka_hw
-  CATKIN_DEPENDS controller_interface hardware_interface roscpp
+  CATKIN_DEPENDS controller_interface hardware_interface joint_limits_interface roscpp urdf
   DEPENDS Franka
 )
 
