@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:macro name="panda_transmission" params="robot_name">
+    <xacro:macro name="panda_transmission" params="robot_name:='panda' load_gripper:='true'">
 
 
         <!-- Load Gazebo lib and set the robot namespace -->
@@ -87,6 +87,7 @@
             </actuator>
         </transmission>
 
+	<xacro:if value="$(arg load_gripper)">
         <transmission name="${robot_name}_leftfinger">
             <type>transmission_interface/SimpleTransmission</type>
             <joint name="${robot_name}_finger_joint1">
@@ -108,5 +109,6 @@
                 <mechanicalReduction>1</mechanicalReduction>
             </actuator>
         </transmission>
+        </xacro:if>
     </xacro:macro>
 </robot>
