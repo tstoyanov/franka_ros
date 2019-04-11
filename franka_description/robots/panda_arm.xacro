@@ -14,11 +14,6 @@
     <!-- end for simulation -->
 
     <link name="${arm_id}_link0">
-      <inertial>
-        <mass value="5"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link0.dae"/>
@@ -39,11 +34,6 @@
       <!-- end for simulation -->
     </link>
     <link name="${arm_id}_link1">
-      <inertial>
-        <mass value="1"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link1.dae"/>
@@ -76,11 +66,6 @@
       <!-- end for simulation -->
     </joint>
     <link name="${arm_id}_link2">
-      <inertial>
-        <mass value="0.5"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link2.dae"/>
@@ -113,11 +98,6 @@
       <!-- end for simulation -->
     </joint>
     <link name="${arm_id}_link3">
-      <inertial>
-        <mass value="0.3"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link3.dae"/>
@@ -150,11 +130,6 @@
       <!-- end for simulation -->
     </joint>
     <link name="${arm_id}_link4">
-      <inertial>
-        <mass value="0.3"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link4.dae"/>
@@ -187,11 +162,6 @@
       <!-- end for simulation -->
     </joint>
     <link name="${arm_id}_link5">
-      <inertial>
-        <mass value="0.3"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link5.dae"/>
@@ -224,11 +194,6 @@
       <!-- end for simulation -->
     </joint>
     <link name="${arm_id}_link6">
-      <inertial>
-        <mass value="0.3"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link6.dae"/>
@@ -261,11 +226,6 @@
       <!-- end for simulation -->
     </joint>
     <link name="${arm_id}_link7">
-      <inertial>
-        <mass value="0.3"/>
-        <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
-        <origin/>
-      </inertial>
       <visual>
         <geometry>
           <mesh filename="package://${description_pkg}/meshes/visual/link7.dae"/>
