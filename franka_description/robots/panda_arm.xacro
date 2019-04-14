@@ -112,7 +112,7 @@
       <!-- for simulation -->
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
-        <mass value="2.38" />
+        <mass value="1.38" />
         <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3" />
       </inertial>
       <!-- end for simulation -->
@@ -144,7 +144,7 @@
       <!-- for simulation -->
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
-        <mass value="2.43" />
+        <mass value="0.43" />
         <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3" />
       </inertial>
       <!-- end for simulation -->
@@ -176,7 +176,7 @@
       <!-- for simulation -->
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
-        <mass value="3.5" />
+        <mass value="0.5" />
         <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3" />
       </inertial>
       <!-- end for simulation -->
@@ -208,7 +208,7 @@
       <!-- for simulation -->
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
-        <mass value="1.47" />
+        <mass value="0.47" />
         <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3" />
       </inertial>
       <!-- end for simulation -->
