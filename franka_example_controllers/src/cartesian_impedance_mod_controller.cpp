@@ -88,7 +88,7 @@ bool CartesianImpedanceModController::init(hardware_interface::RobotHW* robot_hw
     }
   }
 
-  /* //NOTE: disabled for testing
+  //NOTE: disabled for testing
   dynamic_reconfigure_compliance_param_node_ =
       ros::NodeHandle("dynamic_reconfigure_compliance_param_node");
 
@@ -98,7 +98,7 @@ bool CartesianImpedanceModController::init(hardware_interface::RobotHW* robot_hw
       dynamic_reconfigure_compliance_param_node_);
   dynamic_server_compliance_param_->setCallback(
       boost::bind(&CartesianImpedanceModController::complianceParamCallback, this, _1, _2));
-  */
+  
 
   position_d_.setZero();
   orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
@@ -274,6 +274,10 @@ void CartesianImpedanceModController::desiredStiffnessCallback(
     cartesian_damping_target_(4,4) = 2.0 * sqrt(cartesian_stiffness_target_(4,4));
     cartesian_damping_target_(5,5) = 2.0 * sqrt(cartesian_stiffness_target_(5,5));
 
+//    std::cerr<<"current stiffness\n"<<cartesian_stiffness_<<std::endl;
+//    std::cerr<<"target stiffness\n"<<cartesian_stiffness_target_<<std::endl;
+//    std::cerr<<"current damping\n"<<cartesian_damping_<<std::endl;
+//    std::cerr<<"target damping\n"<<cartesian_damping_target_<<std::endl;
 }
 
 }  // namespace franka_example_controllers
