@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  rospy
+  std_msgs
   message_generation
   control_msgs
   actionlib
@@ -24,12 +26,21 @@ add_action_files(
         Move.action
 )
 
+add_service_files(
+  FILES
+  gripper_service.srv
+)
+
 add_message_files(
   DIRECTORY msg
   FILES GraspEpsilon.msg
 )
 
-generate_messages(DEPENDENCIES actionlib_msgs)
+generate_messages(
+  DEPENDENCIES
+  actionlib_msgs
+  std_msgs
+)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -84,6 +95,22 @@ target_link_libraries(franka_gripper_node
 
 target_include_directories(franka_gripper_node SYSTEM PUBLIC
   ${catkin_INCLUDE_DIRS}
+)
+
+add_executable(franka_gripper_service
+  src/franka_gripper_service.cpp
+)
+
+target_link_libraries(franka_gripper_service
+  ${catkin_LIBRARIES}
+  franka_gripper
+)
+
+add_dependencies(franka_gripper_service
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+  franka_gripper_gencpp
+  franka_gripper
 )
 
 ## Installation
