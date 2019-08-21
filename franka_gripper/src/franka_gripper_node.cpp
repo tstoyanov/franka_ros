@@ -15,6 +15,8 @@
 #include <franka/gripper_state.h>
 #include <franka_gripper/franka_gripper.h>
 
+#include "franka_gripper/gripper_service.h"
+
 namespace {
 
 template <typename T_action, typename T_goal, typename T_result>
@@ -88,6 +90,19 @@ int main(int argc, char** argv) {
   auto stop_handler = [&gripper](auto&& goal) { return stop(gripper, goal); };
   auto grasp_handler = [&gripper](auto&& goal) { return grasp(gripper, goal); };
   auto move_handler = [&gripper](auto&& goal) { return move(gripper, goal); };
+
+  // ============================================================================
+  auto move_service_handler = [&gripper](franka_gripper::gripper_service::Request& req, franka_gripper::gripper_service::Response& res)
+  {
+    res.success = franka_gripper::service_move(gripper, (double)req.width, (double)req.speed);
+    res.error = "";
+    ROS_INFO("request: width=%f, speed=%f", (double)req.width, (double)req.speed);
+    return true;
+  };
+
+  // ros::ServiceServer service = node_handle.advertiseService("franka_gripper_move_service", move);
+  ros::ServiceServer service = node_handle.advertiseService<franka_gripper::gripper_service::Request, franka_gripper::gripper_service::Response>("move_service", move_service_handler);
+  // ============================================================================
 
   SimpleActionServer<HomingAction> homing_action_server(
       node_handle, "homing",

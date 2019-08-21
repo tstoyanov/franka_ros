@@ -85,6 +85,7 @@ add_executable(franka_gripper_node
 add_dependencies(franka_gripper_node
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS}
+  franka_gripper_gencpp
   franka_gripper
 )
 

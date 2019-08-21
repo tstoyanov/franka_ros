@@ -45,7 +45,7 @@ int main(int argc, char **argv)
   };
 
   // ros::ServiceServer service = node_handle.advertiseService("franka_gripper_move_service", move);
-  ros::ServiceServer service = node_handle.advertiseService<franka_gripper::gripper_service::Request, franka_gripper::gripper_service::Response>("my_service", move_handler);
+  ros::ServiceServer service = node_handle.advertiseService<franka_gripper::gripper_service::Request, franka_gripper::gripper_service::Response>("move_service", move_handler);
   ROS_INFO("Ready to move the gripper.");
   ros::spin();
 
