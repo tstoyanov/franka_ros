@@ -78,6 +78,10 @@ bool move(const franka::Gripper& gripper, const MoveGoalConstPtr& goal) {
   return gripper.move(goal->width, goal->speed);
 }
 
+bool service_move(const franka::Gripper& gripper, double width, double speed) {
+  return gripper.move(width, speed);
+}
+
 bool homing(const franka::Gripper& gripper, const HomingGoalConstPtr& /*goal*/) {
   return gripper.homing();
 }

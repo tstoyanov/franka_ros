@@ -61,6 +61,17 @@ void gripperCommandExecuteCallback(
 bool move(const franka::Gripper& gripper, const MoveGoalConstPtr& goal);
 
 /**
+ * Calls the libfranka move service of the gripper
+ *
+ * @param[in] gripper A gripper instance to execute the command
+ * @param[in] width A gripper target width
+ * @param[in] speed A gripper target velocity
+ *
+ * @return True if command was successful, false otherwise.
+ */
+bool service_move(const franka::Gripper& gripper, double width, double speed);
+
+/**
  * Calls the libfranka homing service of the gripper
  *
  * @param[in] gripper A gripper instance to execute the command
