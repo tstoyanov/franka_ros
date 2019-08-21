@@ -98,22 +98,6 @@ target_include_directories(franka_gripper_node SYSTEM PUBLIC
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(franka_gripper_service
-  src/franka_gripper_service.cpp
-)
-
-target_link_libraries(franka_gripper_service
-  ${catkin_LIBRARIES}
-  franka_gripper
-)
-
-add_dependencies(franka_gripper_service
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-  ${catkin_EXPORTED_TARGETS}
-  franka_gripper_gencpp
-  franka_gripper
-)
-
 ## Installation
 install(TARGETS franka_gripper
                 franka_gripper_node
