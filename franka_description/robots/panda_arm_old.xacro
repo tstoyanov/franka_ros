@@ -28,8 +28,8 @@
       <!-- for simulation -->
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
-        <mass value="5.0" />
-        <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
+        <mass value="4.9707" />
+        <inertia ixx="0.7034" ixy="-0.0001" ixz="0.0068" iyy="0.7066" iyz="0.0197" izz="0.0091" />
       </inertial>
       <!-- end for simulation -->
     </link>
@@ -48,9 +48,9 @@
 
       <!-- for simulation -->
       <inertial>
-        <origin xyz="0.0038 0.0021 -0.1750" rpy="0 0 0" />
-        <mass value="4.9707" />
-        <inertia ixx="0.7034" ixy="-0.0001" ixz="0.0068" iyy="0.7066" iyz="0.0197" izz="0.0091" />
+        <origin xyz="-0.0031 -0.0287 0.0034" rpy="0 0 0" />
+        <mass value="0.6469" />
+        <inertia ixx="0.0080" ixy="-0.0039" ixz="0.0103" iyy="0.0281" iyz="0.0007" izz="0.0260" />
       </inertial>
       <!-- end for simulation -->
     </link>
@@ -80,9 +80,9 @@
 
       <!-- for simulation -->
       <inertial>
-        <origin xyz="-0.0031 -0.0287 0.0034" rpy="0 0 0" />
-        <mass value="0.6469" />
-        <inertia ixx="0.0080" ixy="-0.0039" ixz="0.0103" iyy="0.0281" iyz="0.0007" izz="0.0260" />
+        <origin xyz="0.0275 0.0392 -0.0665" rpy="0 0 0" />
+        <mass value="3.2286" />
+        <inertia ixx="0.0372" ixy="-0.0047" ixz="-0.0011" iyy="0.03615" iyz="-0.0128" izz="0.0108" />
       </inertial>
       <!-- end for simulation -->
     </link>
@@ -112,9 +112,9 @@
 
       <!-- for simulation -->
       <inertial>
-        <origin xyz="0.0275 0.0392 -0.0665" rpy="0 0 0" />
-        <mass value="3.2286" />
-        <inertia ixx="0.0372" ixy="-0.0047" ixz="-0.0011" iyy="0.03615" iyz="-0.0128" izz="0.0108" />
+        <origin xyz="-0.0532 0.1044 0.0274" rpy="0 0 0" />
+        <mass value="3.5879" />
+        <inertia ixx="0.0259" ixy="0.0078" ixz="-0.0013" iyy="0.0195" iyz="0.0086" izz="0.0283" />
       </inertial>
       <!-- end for simulation -->
     </link>
@@ -145,8 +145,8 @@
       <!-- for simulation -->
       <inertial>
         <origin xyz="-0.0532 0.1044 0.0274" rpy="0 0 0" />
-        <mass value="3.5879" />
-        <inertia ixx="0.0259" ixy="0.0078" ixz="-0.0013" iyy="0.0195" iyz="0.0086" izz="0.0283" />
+        <mass value="1.2259" />
+        <inertia ixx="0.0355" ixy="-0.0021" ixz="-0.0040" iyy="0.0294" iyz="0.0002" izz="0.0086" />
       </inertial>
       <!-- end for simulation -->
     </link>
@@ -176,9 +176,9 @@
 
       <!-- for simulation -->
       <inertial>
-        <origin xyz="-0.0532 0.1044 0.0274" rpy="0 0 0" />
-        <mass value="1.2259" />
-        <inertia ixx="0.0355" ixy="-0.0021" ixz="-0.0040" iyy="0.0294" iyz="0.0002" izz="0.0086" />
+        <origin xyz="0.0601 -0.0141 -0.0105" rpy="0 0 0" />
+        <mass value="1.6665" />
+        <inertia ixx="0.0196" ixy="0.0001" ixz="-0.0011" iyy="0.0043" iyz="0.0003" izz="0.0054" />
       </inertial>
       <!-- end for simulation -->
     </link>
@@ -208,9 +208,9 @@
 
       <!-- for simulation -->
       <inertial>
-        <origin xyz="0.0601 -0.0141 -0.0105" rpy="0 0 0" />
-        <mass value="1.6665" />
-        <inertia ixx="0.0196" ixy="0.0001" ixz="-0.0011" iyy="0.0043" iyz="0.0003" izz="0.0054" />
+        <origin xyz="0.0105 -0.0043 0.0616" rpy="0 0 0" />
+        <mass value="0.7355" />
+        <inertia ixx="0.0125" ixy="-0.0004" ixz="-0.0012" iyy="0.0100" iyz="-0.0007" izz="0.0048" />
       </inertial>
       <!-- end for simulation -->
     </link>
@@ -240,9 +240,9 @@
 
       <!-- for simulation -->
       <inertial>
-        <origin xyz="0.0105 -0.0043 0.0616" rpy="0 0 0" />
-        <mass value="0.7355" />
-        <inertia ixx="0.0125" ixy="-0.0004" ixz="-0.0012" iyy="0.0100" iyz="-0.0007" izz="0.0048" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.1" />
+        <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0" />
       </inertial>
       <!-- end for simulation -->
     </link>
