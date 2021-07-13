@@ -4,8 +4,14 @@
   <xacro:include filename="$(find franka_description)/robots/hand.xacro"/>
 
   <!-- for simulation -->
+  <xacro:arg name="effort_ifce" default="true"/>
   <xacro:include filename="$(find franka_description)/robots/panda.gazebo.xacro"/>
-  <xacro:include filename="$(find franka_description)/robots/panda.transmission.xacro"/>
+  <xacro:if value="$(arg effort_ifce)">
+          <xacro:include filename="$(find franka_description)/robots/panda.transmission.xacro"/>
+  </xacro:if>
+  <xacro:unless value="$(arg effort_ifce)">
+          <xacro:include filename="$(find franka_description)/robots/panda.transmission.vel.xacro"/>
+  </xacro:unless>
   <!-- end for simulation -->
 
   <xacro:panda_arm safety_distance="0.03"/>
