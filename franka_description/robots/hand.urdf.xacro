@@ -2,4 +2,15 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="hand">
   <xacro:include filename="hand.xacro"/>
   <xacro:hand ns="panda" safety_distance="0.03"/>
+  
+  <xacro:macro name="hand_gazebo">
+
+ 	<gazebo reference="hand">
+    	<mu1>10000.0</mu1>  
+  		<mu2>10000.0</mu2>  
+  		<minDepth>0.003</minDepth>  
+  		<maxVel>0</maxVel> 
+	    <self_collide>true</self_collide>
+    </gazebo>
+    
 </robot>

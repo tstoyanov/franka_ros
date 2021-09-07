@@ -68,8 +68,18 @@
       <collision>
         <origin xyz="0 0.005 0.045" rpy="0 0 0"/>
         <geometry>
-          <sphere radius="${0.01+safety_distance}"  />
+          <box size="0.02 0.02 0.02"  />
         </geometry>
+        <surface>
+          <friction>
+           <ode>
+            <mu>10000.0</mu>
+            <mu2>10000.0</mu2>
+            <minDepth>0.003</minDepth>  
+	    <maxVel>0</maxVel>
+           </ode>
+          </friction>
+       </surface>
       </collision>
       <!-- for simulation -->
       <inertial>
@@ -89,8 +99,18 @@
       <collision>
         <origin xyz="0 -0.005 0.045" rpy="0 0 0"/>
         <geometry>
-          <sphere radius="${0.01+safety_distance}"  />
+          <box size="0.02 0.02 0.02"  />
         </geometry>
+        <surface>
+          <friction>
+           <ode>
+            <mu>10000.0</mu>
+            <mu2>10000.0</mu2>
+            <minDepth>0.003</minDepth>  
+	    <maxVel>0</maxVel>
+           </ode>
+          </friction>
+       </surface>
       </collision>
       <!-- for simulation -->
       <inertial>
