@@ -70,16 +70,6 @@
         <geometry>
           <box size="0.02 0.02 0.02"  />
         </geometry>
-        <surface>
-          <friction>
-           <ode>
-            <mu>10000.0</mu>
-            <mu2>10000.0</mu2>
-            <minDepth>0.003</minDepth>  
-	    <maxVel>0</maxVel>
-           </ode>
-          </friction>
-       </surface>
       </collision>
       <!-- for simulation -->
       <inertial>
@@ -101,16 +91,6 @@
         <geometry>
           <box size="0.02 0.02 0.02"  />
         </geometry>
-        <surface>
-          <friction>
-           <ode>
-            <mu>10000.0</mu>
-            <mu2>10000.0</mu2>
-            <minDepth>0.003</minDepth>  
-	    <maxVel>0</maxVel>
-           </ode>
-          </friction>
-       </surface>
       </collision>
       <!-- for simulation -->
       <inertial>
