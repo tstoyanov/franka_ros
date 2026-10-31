@@ -96,7 +96,7 @@ controller_interface::return_type ForceExampleController::update(
   std::array<double, 7> gravity_array = model_handle_->getGravity();
   Eigen::Map<Eigen::Matrix<double, 6, 7>> jacobian(jacobian_array.data());
   Eigen::Map<Eigen::Matrix<double, 7, 1>> tau_measured(robot_state.tau_J.data());
-  Eigen::Map<Eigen::Matrix<double, 7, 1>> tau_J_d(  // NOLINT (readability-identifier-naming)
+  Eigen::Map<Eigen::Matrix<double, 7, 1>> tau_j_d(  // NOLINT (readability-identifier-naming)
       robot_state.tau_J_d.data());
   Eigen::Map<Eigen::Matrix<double, 7, 1>> gravity(gravity_array.data());
 
@@ -108,7 +108,7 @@ controller_interface::return_type ForceExampleController::update(
   tau_error_ = tau_error_ + period.seconds() * (tau_d - tau_ext);
   // FF + PI control (PI gains are initially all 0)
   tau_cmd = tau_d + k_p_ * (tau_d - tau_ext) + k_i_ * tau_error_;
-  tau_cmd << saturateTorqueRate(tau_cmd, tau_J_d);
+  tau_cmd << saturateTorqueRate(tau_cmd, tau_j_d);
 
   for (size_t i = 0; i < 7; ++i) {
     command_interfaces_[i].set_value(tau_cmd(i));
@@ -126,11 +126,11 @@ controller_interface::return_type ForceExampleController::update(
 
 Eigen::Matrix<double, 7, 1> ForceExampleController::saturateTorqueRate(
     const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
-    const Eigen::Matrix<double, 7, 1>& tau_J_d) {  // NOLINT (readability-identifier-naming)
+    const Eigen::Matrix<double, 7, 1>& tau_j_d) {  // NOLINT (readability-identifier-naming)
   Eigen::Matrix<double, 7, 1> tau_d_saturated{};
   for (size_t i = 0; i < 7; i++) {
-    double difference = tau_d_calculated[i] - tau_J_d[i];
-    tau_d_saturated[i] = tau_J_d[i] + std::max(std::min(difference, kDeltaTauMax), -kDeltaTauMax);
+    double difference = tau_d_calculated[i] - tau_j_d[i];
+    tau_d_saturated[i] = tau_j_d[i] + std::max(std::min(difference, kDeltaTauMax), -kDeltaTauMax);
   }
   return tau_d_saturated;
 }

@@ -156,11 +156,11 @@ controller_interface::return_type JointImpedanceExampleController::update(
 
 std::array<double, 7> JointImpedanceExampleController::saturateTorqueRate(
     const std::array<double, 7>& tau_d_calculated,
-    const std::array<double, 7>& tau_J_d) {  // NOLINT (readability-identifier-naming)
+    const std::array<double, 7>& tau_j_d) {  // NOLINT (readability-identifier-naming)
   std::array<double, 7> tau_d_saturated{};
   for (size_t i = 0; i < 7; i++) {
-    double difference = tau_d_calculated[i] - tau_J_d[i];
-    tau_d_saturated[i] = tau_J_d[i] + std::max(std::min(difference, kDeltaTauMax), -kDeltaTauMax);
+    double difference = tau_d_calculated[i] - tau_j_d[i];
+    tau_d_saturated[i] = tau_j_d[i] + std::max(std::min(difference, kDeltaTauMax), -kDeltaTauMax);
   }
   return tau_d_saturated;
 }

@@ -34,7 +34,7 @@ class JointImpedanceExampleController : public controller_interface::ControllerI
   // Saturation
   std::array<double, 7> saturateTorqueRate(
       const std::array<double, 7>& tau_d_calculated,
-      const std::array<double, 7>& tau_J_d);  // NOLINT (readability-identifier-naming)
+      const std::array<double, 7>& tau_j_d);  // NOLINT (readability-identifier-naming)
 
   std::string arm_id_;
   std::vector<std::string> joint_names_;

@@ -277,11 +277,11 @@ void FrankaStateController::publishFrankaStates(const rclcpp::Time& time) {
     for (size_t i = 0; i < robot_state_.cartesian_collision.size(); i++) {
       publisher_franka_states_.msg_.cartesian_collision[i] = robot_state_.cartesian_collision[i];
       publisher_franka_states_.msg_.cartesian_contact[i] = robot_state_.cartesian_contact[i];
-      publisher_franka_states_.msg_.K_F_ext_hat_K[i] = robot_state_.K_F_ext_hat_K[i];
-      publisher_franka_states_.msg_.O_F_ext_hat_K[i] = robot_state_.O_F_ext_hat_K[i];
-      publisher_franka_states_.msg_.O_dP_EE_d[i] = robot_state_.O_dP_EE_d[i];
-      publisher_franka_states_.msg_.O_dP_EE_c[i] = robot_state_.O_dP_EE_c[i];
-      publisher_franka_states_.msg_.O_ddP_EE_c[i] = robot_state_.O_ddP_EE_c[i];
+      publisher_franka_states_.msg_.k_f_ext_hat_k[i] = robot_state_.K_F_ext_hat_K[i];
+      publisher_franka_states_.msg_.o_f_ext_hat_k[i] = robot_state_.O_F_ext_hat_K[i];
+      publisher_franka_states_.msg_.o_dp_ee_d[i] = robot_state_.O_dP_EE_d[i];
+      publisher_franka_states_.msg_.o_dp_ee_c[i] = robot_state_.O_dP_EE_c[i];
+      publisher_franka_states_.msg_.o_ddp_ee_c[i] = robot_state_.O_ddP_EE_c[i];
     }
 
     static_assert(sizeof(robot_state_.q) == sizeof(robot_state_.q_d),
@@ -314,9 +314,9 @@ void FrankaStateController::publishFrankaStates(const rclcpp::Time& time) {
       publisher_franka_states_.msg_.dq[i] = robot_state_.dq[i];
       publisher_franka_states_.msg_.dq_d[i] = robot_state_.dq_d[i];
       publisher_franka_states_.msg_.ddq_d[i] = robot_state_.ddq_d[i];
-      publisher_franka_states_.msg_.tau_J[i] = robot_state_.tau_J[i];
-      publisher_franka_states_.msg_.dtau_J[i] = robot_state_.dtau_J[i];
-      publisher_franka_states_.msg_.tau_J_d[i] = robot_state_.tau_J_d[i];
+      publisher_franka_states_.msg_.tau_j[i] = robot_state_.tau_J[i];
+      publisher_franka_states_.msg_.dtau_j[i] = robot_state_.dtau_J[i];
+      publisher_franka_states_.msg_.tau_j_d[i] = robot_state_.tau_J_d[i];
       publisher_franka_states_.msg_.theta[i] = robot_state_.theta[i];
       publisher_franka_states_.msg_.dtheta[i] = robot_state_.dtheta[i];
       publisher_franka_states_.msg_.joint_collision[i] = robot_state_.joint_collision[i];
@@ -350,26 +350,26 @@ void FrankaStateController::publishFrankaStates(const rclcpp::Time& time) {
     static_assert(sizeof(robot_state_.O_T_EE) == sizeof(robot_state_.O_T_EE_c),
                   "Robot state transforms do not have same size");
     for (size_t i = 0; i < robot_state_.O_T_EE.size(); i++) {
-      publisher_franka_states_.msg_.O_T_EE[i] = robot_state_.O_T_EE[i];
-      publisher_franka_states_.msg_.F_T_EE[i] = robot_state_.F_T_EE[i];
-      publisher_franka_states_.msg_.EE_T_K[i] = robot_state_.EE_T_K[i];
-      publisher_franka_states_.msg_.O_T_EE_d[i] = robot_state_.O_T_EE_d[i];
-      publisher_franka_states_.msg_.O_T_EE_c[i] = robot_state_.O_T_EE_c[i];
+      publisher_franka_states_.msg_.o_t_ee[i] = robot_state_.O_T_EE[i];
+      publisher_franka_states_.msg_.f_t_ee[i] = robot_state_.F_T_EE[i];
+      publisher_franka_states_.msg_.ee_t_k[i] = robot_state_.EE_T_K[i];
+      publisher_franka_states_.msg_.o_t_ee_d[i] = robot_state_.O_T_EE_d[i];
+      publisher_franka_states_.msg_.o_t_ee_c[i] = robot_state_.O_T_EE_c[i];
     }
     publisher_franka_states_.msg_.m_ee = robot_state_.m_ee;
     publisher_franka_states_.msg_.m_load = robot_state_.m_load;
     publisher_franka_states_.msg_.m_total = robot_state_.m_total;
 
     for (size_t i = 0; i < robot_state_.I_load.size(); i++) {
-      publisher_franka_states_.msg_.I_ee[i] = robot_state_.I_ee[i];
-      publisher_franka_states_.msg_.I_load[i] = robot_state_.I_load[i];
-      publisher_franka_states_.msg_.I_total[i] = robot_state_.I_total[i];
+      publisher_franka_states_.msg_.i_ee[i] = robot_state_.I_ee[i];
+      publisher_franka_states_.msg_.i_load[i] = robot_state_.I_load[i];
+      publisher_franka_states_.msg_.i_total[i] = robot_state_.I_total[i];
     }
 
     for (size_t i = 0; i < robot_state_.F_x_Cload.size(); i++) {
-      publisher_franka_states_.msg_.F_x_Cee[i] = robot_state_.F_x_Cee[i];
-      publisher_franka_states_.msg_.F_x_Cload[i] = robot_state_.F_x_Cload[i];
-      publisher_franka_states_.msg_.F_x_Ctotal[i] = robot_state_.F_x_Ctotal[i];
+      publisher_franka_states_.msg_.f_x_cee[i] = robot_state_.F_x_Cee[i];
+      publisher_franka_states_.msg_.f_x_cload[i] = robot_state_.F_x_Cload[i];
+      publisher_franka_states_.msg_.f_x_ctotal[i] = robot_state_.F_x_Ctotal[i];
     }
 
     publisher_franka_states_.msg_.time = robot_state_.time.toSec();

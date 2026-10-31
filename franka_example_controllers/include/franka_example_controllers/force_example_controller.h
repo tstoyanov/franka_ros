@@ -31,7 +31,7 @@ class ForceExampleController : public controller_interface::ControllerInterface 
   // Saturation
   Eigen::Matrix<double, 7, 1> saturateTorqueRate(
       const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
-      const Eigen::Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
+      const Eigen::Matrix<double, 7, 1>& tau_j_d);  // NOLINT (readability-identifier-naming)
 
   std::string arm_id_;
   std::vector<std::string> joint_names_;

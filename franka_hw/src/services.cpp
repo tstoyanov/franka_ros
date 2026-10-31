@@ -55,17 +55,17 @@ void setJointImpedance(franka::Robot& robot,
 void setEEFrame(franka::Robot& robot,
                 const franka_msgs::srv::SetEEFrame::Request::SharedPtr req,
                 franka_msgs::srv::SetEEFrame::Response::SharedPtr /*res*/) {
-  std::array<double, 16> F_T_EE;  // NOLINT [readability-identifier-naming]
-  std::copy(req->F_T_EE.cbegin(), req->F_T_EE.cend(), F_T_EE.begin());
-  robot.setEE(F_T_EE);
+  std::array<double, 16> f_t_ee;  // NOLINT [readability-identifier-naming]
+  std::copy(req->f_t_ee.cbegin(), req->f_t_ee.cend(), f_t_ee.begin());
+  robot.setEE(f_t_ee);
 }
 
 void setKFrame(franka::Robot& robot,
                const franka_msgs::srv::SetKFrame::Request::SharedPtr req,
                franka_msgs::srv::SetKFrame::Response::SharedPtr /*res*/) {
-  std::array<double, 16> EE_T_K;  // NOLINT [readability-identifier-naming]
-  std::copy(req->EE_T_K.cbegin(), req->EE_T_K.cend(), EE_T_K.begin());
-  robot.setK(EE_T_K);
+  std::array<double, 16> ee_t_k;  // NOLINT [readability-identifier-naming]
+  std::copy(req->ee_t_k.cbegin(), req->ee_t_k.cend(), ee_t_k.begin());
+  robot.setK(ee_t_k);
 }
 
 void setForceTorqueCollisionBehavior(
@@ -132,12 +132,12 @@ void setLoad(franka::Robot& robot,
              const franka_msgs::srv::SetLoad::Request::SharedPtr req,
              const franka_msgs::srv::SetLoad::Response::SharedPtr /*res*/) {
   double mass(req->mass);
-  std::array<double, 3> F_x_center_load;  // NOLINT [readability-identifier-naming]
-  std::copy(req->F_x_center_load.cbegin(), req->F_x_center_load.cend(), F_x_center_load.begin());
+  std::array<double, 3> f_x_center_load;  // NOLINT [readability-identifier-naming]
+  std::copy(req->f_x_center_load.cbegin(), req->f_x_center_load.cend(), f_x_center_load.begin());
   std::array<double, 9> load_inertia;
   std::copy(req->load_inertia.cbegin(), req->load_inertia.cend(), load_inertia.begin());
 
-  robot.setLoad(mass, F_x_center_load, load_inertia);
+  robot.setLoad(mass, f_x_center_load, load_inertia);
 }
 
 }  // namespace franka_hw

@@ -75,7 +75,7 @@ class DualArmCartesianImpedanceExampleController : public controller_interface::
   Eigen::Matrix<double, 7, 1> saturateTorqueRate(
       const FrankaDataContainer& arm_data,
       const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
-      const Eigen::Matrix<double, 7, 1>& tau_J_d);  // NOLINT (readability-identifier-naming)
+      const Eigen::Matrix<double, 7, 1>& tau_j_d);  // NOLINT (readability-identifier-naming)
 
   /**
    * Initializes a single Panda robot arm.

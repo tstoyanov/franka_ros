@@ -103,7 +103,7 @@ controller_interface::return_type CartesianImpedanceModController::update(
   Eigen::Map<Eigen::Matrix<double, 6, 7>> jacobian(jacobian_array.data());
   Eigen::Map<Eigen::Matrix<double, 7, 1>> q(robot_state.q.data());
   Eigen::Map<Eigen::Matrix<double, 7, 1>> dq(robot_state.dq.data());
-  Eigen::Map<Eigen::Matrix<double, 7, 1>> tau_J_d(  // NOLINT (readability-identifier-naming)
+  Eigen::Map<Eigen::Matrix<double, 7, 1>> tau_j_d(  // NOLINT (readability-identifier-naming)
       robot_state.tau_J_d.data());
   Eigen::Affine3d transform(Eigen::Matrix4d::Map(robot_state.O_T_EE.data()));
   Eigen::Vector3d position(transform.translation());
@@ -154,7 +154,7 @@ controller_interface::return_type CartesianImpedanceModController::update(
   // Desired torque
   tau_d << tau_task + tau_nullspace + coriolis;
   // Saturate torque rate to avoid discontinuities
-  tau_d << saturateTorqueRate(tau_d, tau_J_d);
+  tau_d << saturateTorqueRate(tau_d, tau_j_d);
   for (size_t i = 0; i < 7; ++i) {
     command_interfaces_[i].set_value(tau_d(i));
   }
@@ -182,12 +182,12 @@ controller_interface::return_type CartesianImpedanceModController::update(
 
 Eigen::Matrix<double, 7, 1> CartesianImpedanceModController::saturateTorqueRate(
     const Eigen::Matrix<double, 7, 1>& tau_d_calculated,
-    const Eigen::Matrix<double, 7, 1>& tau_J_d) {  // NOLINT (readability-identifier-naming)
+    const Eigen::Matrix<double, 7, 1>& tau_j_d) {  // NOLINT (readability-identifier-naming)
   Eigen::Matrix<double, 7, 1> tau_d_saturated{};
   for (size_t i = 0; i < 7; i++) {
-    double difference = tau_d_calculated[i] - tau_J_d[i];
+    double difference = tau_d_calculated[i] - tau_j_d[i];
     tau_d_saturated[i] =
-        tau_J_d[i] + std::max(std::min(difference, delta_tau_max_), -delta_tau_max_);
+        tau_j_d[i] + std::max(std::min(difference, delta_tau_max_), -delta_tau_max_);
   }
   return tau_d_saturated;
 }
