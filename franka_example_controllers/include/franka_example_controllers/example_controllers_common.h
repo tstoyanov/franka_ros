@@ -3,6 +3,7 @@
 #pragma once
 
 #include <array>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -52,10 +53,21 @@ inline std::vector<std::string> jointCommandInterfaces(const std::vector<std::st
   return interfaces;
 }
 
+
+// In ROS 2 jazzy, LoanedStateInterface::get_value() returns a double. Our franka state/model
+// interfaces store the raw pointer bits in that double, so decode via memcpy.
+template <typename T>
+inline T* decodePointer(double value) {
+  T* ptr = nullptr;
+  static_assert(sizeof(ptr) == sizeof(value));
+  std::memcpy(&ptr, &value, sizeof(value));
+  return ptr;
+}
+
 // Reads the franka::RobotState pointer exported on the franka state interface.
 inline const franka::RobotState& robotStateFromInterface(
     const controller_interface::LoanedStateInterface& state_interface) {
-  return *static_cast<franka::RobotState*>(state_interface.get_value());
+  return *decodePointer<franka::RobotState>(state_interface.get_value());
 }
 
 // Reads/writes the 16-dof cartesian pose command interfaces into an array.

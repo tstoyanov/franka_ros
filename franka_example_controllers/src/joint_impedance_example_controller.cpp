@@ -70,8 +70,8 @@ CallbackReturn JointImpedanceExampleController::on_configure(
   coriolis_factor_ = node->get_parameter("coriolis_factor").as_double();
 
   // state_interfaces_[0] = robot_state ptr, [1] = model ptr, [2] = first cartesian pose cmd iface
-  auto* robot_state = static_cast<franka::RobotState*>(state_interfaces_[0].get_value());
-  auto* model = static_cast<franka::Model*>(state_interfaces_[1].get_value());
+  auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
+  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
   model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
                                                                   *robot_state);
 

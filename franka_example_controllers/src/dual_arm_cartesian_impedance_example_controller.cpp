@@ -22,9 +22,9 @@ bool DualArmCartesianImpedanceExampleController::initArm(const std::string& arm_
                                                          size_t state_offset,
                                                          size_t command_offset) {
   FrankaDataContainer arm_data;
-  arm_data.robot_state_ = static_cast<franka::RobotState*>(
+  arm_data.robot_state_ = decodePointer<franka::RobotState>(
       state_interfaces_[state_offset].get_value());
-  auto* model = static_cast<franka::Model*>(state_interfaces_[state_offset + 1].get_value());
+  auto* model = decodePointer<franka::Model>(state_interfaces_[state_offset + 1].get_value());
   arm_data.model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(
       arm_id + "_model", *model, *arm_data.robot_state_);
   arm_data.command_offset_ = command_offset;

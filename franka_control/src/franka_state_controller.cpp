@@ -3,6 +3,7 @@
 #include <franka_control/franka_state_controller.h>
 
 #include <cmath>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -249,7 +250,11 @@ CallbackReturn FrankaStateController::on_configure(const rclcpp_lifecycle::State
 controller_interface::return_type FrankaStateController::update(const rclcpp::Time& time,
                                                                  const rclcpp::Duration& /*period*/) {
   if (trigger_publish_()) {
-    robot_state_ = *static_cast<franka::RobotState*>(state_interfaces_[0].get_value());
+    double value = state_interfaces_[0].get_value();
+    franka::RobotState* state_ptr = nullptr;
+    static_assert(sizeof(state_ptr) == sizeof(value));
+    std::memcpy(&state_ptr, &value, sizeof(value));
+    robot_state_ = *state_ptr;
     publishFrankaStates(time);
     publishTransforms(time);
     publishExternalWrench(time);

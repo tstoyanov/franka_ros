@@ -34,8 +34,8 @@ CallbackReturn ModelExampleController::on_configure(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   arm_id_ = get_node()->get_parameter("arm_id").as_string();
   // state_interfaces_[0] holds the franka::RobotState pointer, state_interfaces_[1] the model.
-  auto* robot_state = static_cast<franka::RobotState*>(state_interfaces_[0].get_value());
-  auto* model = static_cast<franka::Model*>(state_interfaces_[1].get_value());
+  auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
+  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
   model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
                                                                   *robot_state);
   return CallbackReturn::SUCCESS;
