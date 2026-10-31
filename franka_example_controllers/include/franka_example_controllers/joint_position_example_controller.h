@@ -6,25 +6,30 @@
 #include <string>
 #include <vector>
 
-#include <controller_interface/multi_interface_controller.h>
-#include <hardware_interface/joint_command_interface.h>
-#include <hardware_interface/robot_hw.h>
-#include <ros/node_handle.h>
-#include <ros/time.h>
+#include <controller_interface/controller_interface.hpp>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <rclcpp/duration.hpp>
+#include <rclcpp/time.hpp>
+#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
+#include <rclcpp_lifecycle/state.hpp>
+using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+
 
 namespace franka_example_controllers {
 
-class JointPositionExampleController : public controller_interface::MultiInterfaceController<
-                                           hardware_interface::PositionJointInterface> {
+class JointPositionExampleController : public controller_interface::ControllerInterface {
  public:
-  bool init(hardware_interface::RobotHW* robot_hardware, ros::NodeHandle& node_handle) override;
-  void starting(const ros::Time&) override;
-  void update(const ros::Time&, const ros::Duration& period) override;
+  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
+  controller_interface::return_type update(const rclcpp::Time& time,
+                                           const rclcpp::Duration& period) override;
+  CallbackReturn on_init() override;
+  CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+  CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
 
  private:
-  hardware_interface::PositionJointInterface* position_joint_interface_;
-  std::vector<hardware_interface::JointHandle> position_joint_handles_;
-  ros::Duration elapsed_time_;
+  std::vector<std::string> joint_names_;
+  rclcpp::Duration elapsed_time_{0, 0};
   std::array<double, 7> initial_pose_{};
 };
 

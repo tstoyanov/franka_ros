@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
 #pragma once
 
-#include <ros/time.h>
+#include <rclcpp/time.hpp>
 
 namespace franka_hw {
 
@@ -12,7 +12,7 @@ class TriggerRate {
   bool operator()();
 
  private:
-  ros::Time time_stamp_;
+  rclcpp::Time time_stamp_;
   double period_;
 };
 

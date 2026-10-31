@@ -5,12 +5,16 @@
 #include <string>
 
 #include <franka/robot_state.h>
-#include <hardware_interface/internal/hardware_resource_manager.h>
 
 namespace franka_hw {
 
+constexpr char kFrankaStateInterface[] = "franka_hw/FrankaStateInterface";
+
 /**
  * Handle to read the complete state of a robot.
+ *
+ * In ros2_control this is exported as a custom state interface named
+ * `<arm_id>/franka_hw/FrankaStateInterface/robot_state`.
  */
 class FrankaStateHandle {
  public:
@@ -42,14 +46,6 @@ class FrankaStateHandle {
  private:
   std::string name_;
   const franka::RobotState* robot_state_;
-};
-
-/**
- * Hardware interface to read the complete robot state.
- *
- * @see franka::RobotState for a description of the values included in the robot state.
- */
-class FrankaStateInterface : public hardware_interface::HardwareResourceManager<FrankaStateHandle> {
 };
 
 }  // namespace franka_hw

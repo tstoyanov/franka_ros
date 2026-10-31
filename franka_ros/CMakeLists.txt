@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(franka_ros)
-find_package(catkin REQUIRED)
-catkin_metapackage()
+cmake_minimum_required(VERSION 3.8)
+project(franka_ros NONE)
+
+find_package(ament_cmake REQUIRED)
+ament_package()

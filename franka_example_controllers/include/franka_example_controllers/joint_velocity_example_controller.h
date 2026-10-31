@@ -5,28 +5,30 @@
 #include <string>
 #include <vector>
 
-#include <controller_interface/multi_interface_controller.h>
-#include <franka_hw/franka_state_interface.h>
-#include <hardware_interface/joint_command_interface.h>
-#include <hardware_interface/robot_hw.h>
-#include <ros/node_handle.h>
-#include <ros/time.h>
+#include <controller_interface/controller_interface.hpp>
+#include <rclcpp/duration.hpp>
+#include <rclcpp/time.hpp>
+#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
+#include <rclcpp_lifecycle/state.hpp>
+using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+
 
 namespace franka_example_controllers {
 
-class JointVelocityExampleController : public controller_interface::MultiInterfaceController<
-                                           hardware_interface::VelocityJointInterface,
-                                           franka_hw::FrankaStateInterface> {
+class JointVelocityExampleController : public controller_interface::ControllerInterface {
  public:
-  bool init(hardware_interface::RobotHW* robot_hardware, ros::NodeHandle& node_handle) override;
-  void update(const ros::Time&, const ros::Duration& period) override;
-  void starting(const ros::Time&) override;
-  void stopping(const ros::Time&) override;
+  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
+  controller_interface::return_type update(const rclcpp::Time& time,
+                                           const rclcpp::Duration& period) override;
+  CallbackReturn on_init() override;
+  CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+  CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
 
  private:
-  hardware_interface::VelocityJointInterface* velocity_joint_interface_;
-  std::vector<hardware_interface::JointHandle> velocity_joint_handles_;
-  ros::Duration elapsed_time_;
+  std::string arm_id_;
+  std::vector<std::string> joint_names_;
+  rclcpp::Duration elapsed_time_{0, 0};
 };
 
 }  // namespace franka_example_controllers
