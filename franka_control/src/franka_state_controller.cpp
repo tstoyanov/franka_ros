@@ -11,7 +11,7 @@
 #include <franka_hw/franka_cartesian_command_interface.h>
 #include <franka_msgs/msg/errors.hpp>
 
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
