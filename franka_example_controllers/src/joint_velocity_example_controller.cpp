@@ -4,98 +4,79 @@
 
 #include <cmath>
 
-#include <controller_interface/controller_base.h>
-#include <hardware_interface/hardware_interface.h>
-#include <hardware_interface/joint_command_interface.h>
-#include <pluginlib/class_list_macros.h>
-#include <ros/ros.h>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <pluginlib/class_list_macros.hpp>
+#include <rclcpp/rclcpp.hpp>
+
+#include <franka_example_controllers/example_controllers_common.h>
 
 namespace franka_example_controllers {
 
-bool JointVelocityExampleController::init(hardware_interface::RobotHW* robot_hardware,
-                                          ros::NodeHandle& node_handle) {
-  velocity_joint_interface_ = robot_hardware->get<hardware_interface::VelocityJointInterface>();
-  if (velocity_joint_interface_ == nullptr) {
-    ROS_ERROR(
-        "JointVelocityExampleController: Error getting velocity joint interface from hardware!");
-    return false;
-  }
-  std::vector<std::string> joint_names;
-  if (!node_handle.getParam("joint_names", joint_names)) {
-    ROS_ERROR("JointVelocityExampleController: Could not parse joint names");
-  }
-  if (joint_names.size() != 7) {
-    ROS_ERROR_STREAM("JointVelocityExampleController: Wrong number of joint names, got "
-                     << joint_names.size() << " instead of 7 names!");
-    return false;
-  }
-  velocity_joint_handles_.resize(7);
-  for (size_t i = 0; i < 7; ++i) {
-    try {
-      velocity_joint_handles_[i] = velocity_joint_interface_->getHandle(joint_names[i]);
-    } catch (const hardware_interface::HardwareInterfaceException& ex) {
-      ROS_ERROR_STREAM(
-          "JointVelocityExampleController: Exception getting joint handles: " << ex.what());
-      return false;
-    }
-  }
-
-  auto state_interface = robot_hardware->get<franka_hw::FrankaStateInterface>();
-  if (state_interface == nullptr) {
-    ROS_ERROR("JointVelocityExampleController: Could not get state interface from hardware");
-    return false;
-  }
-
-  try {
-    auto state_handle = state_interface->getHandle("panda_robot");
-
-    std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
-    for (size_t i = 0; i < q_start.size(); i++) {
-      if (std::abs(state_handle.getRobotState().q_d[i] - q_start[i]) > 0.1) {
-        ROS_ERROR_STREAM(
-            "JointVelocityExampleController: Robot is not in the expected starting position for "
-            "running this example. Run `roslaunch franka_example_controllers move_to_start.launch "
-            "robot_ip:=<robot-ip> load_gripper:=<has-attached-gripper>` first.");
-        return false;
-      }
-    }
-  } catch (const hardware_interface::HardwareInterfaceException& e) {
-    ROS_ERROR_STREAM(
-        "JointVelocityExampleController: Exception getting state handle: " << e.what());
-    return false;
-  }
-
-  return true;
+CallbackReturn JointVelocityExampleController::on_init() {
+  auto_declare("arm_id", std::string());
+  auto_declare("joint_names", std::vector<std::string>());
+  return CallbackReturn::SUCCESS;
 }
 
-void JointVelocityExampleController::starting(const ros::Time& /* time */) {
-  elapsed_time_ = ros::Duration(0.0);
+controller_interface::InterfaceConfiguration
+JointVelocityExampleController::command_interface_configuration() const {
+  return {controller_interface::interface_configuration_type::INDIVIDUAL,
+          jointCommandInterfaces(joint_names_, hardware_interface::HW_IF_VELOCITY)};
 }
 
-void JointVelocityExampleController::update(const ros::Time& /* time */,
-                                            const ros::Duration& period) {
-  elapsed_time_ += period;
+controller_interface::InterfaceConfiguration
+JointVelocityExampleController::state_interface_configuration() const {
+  return {controller_interface::interface_configuration_type::INDIVIDUAL,
+          {frankaStateInterface(arm_id_)}};
+}
 
-  ros::Duration time_max(8.0);
+CallbackReturn JointVelocityExampleController::on_configure(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  arm_id_ = get_node()->get_parameter("arm_id").as_string();
+  joint_names_ = get_node()->get_parameter("joint_names").as_string_array();
+  if (joint_names_.size() != 7) {
+    RCLCPP_ERROR(get_node()->get_logger(),
+                 "JointVelocityExampleController: Invalid or no joint_names parameters provided!");
+    return CallbackReturn::ERROR;
+  }
+  const auto& state = robotStateFromInterface(state_interfaces_[0]);
+  std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
+  for (size_t i = 0; i < q_start.size(); i++) {
+    if (std::abs(state.q_d[i] - q_start[i]) > 0.1) {
+      RCLCPP_ERROR(get_node()->get_logger(),
+                   "JointVelocityExampleController: Robot is not in the expected starting position "
+                   "for running this example. Run move_to_start.launch.py first.");
+      return CallbackReturn::ERROR;
+    }
+  }
+  return CallbackReturn::SUCCESS;
+}
+
+CallbackReturn JointVelocityExampleController::on_activate(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  elapsed_time_ = rclcpp::Duration(0, 0);
+  return CallbackReturn::SUCCESS;
+}
+
+controller_interface::return_type JointVelocityExampleController::update(
+    const rclcpp::Time& /*time*/, const rclcpp::Duration& period) {
+  elapsed_time_ = elapsed_time_ + period;
+
+  double time_max = 8.0;
   double omega_max = 0.1;
-  double cycle = std::floor(
-      std::pow(-1.0, (elapsed_time_.toSec() - std::fmod(elapsed_time_.toSec(), time_max.toSec())) /
-                         time_max.toSec()));
+  double cycle = std::floor(std::pow(-1.0, (elapsed_time_.seconds() -
+                                             std::fmod(elapsed_time_.seconds(), time_max)) /
+                                            time_max));
   double omega = cycle * omega_max / 2.0 *
-                 (1.0 - std::cos(2.0 * M_PI / time_max.toSec() * elapsed_time_.toSec()));
+                 (1.0 - std::cos(2.0 * M_PI / time_max * elapsed_time_.seconds()));
 
-  for (auto joint_handle : velocity_joint_handles_) {
-    joint_handle.setCommand(omega);
+  for (auto& command_interface : command_interfaces_) {
+    command_interface.set_value(omega);
   }
-}
-
-void JointVelocityExampleController::stopping(const ros::Time& /*time*/) {
-  // WARNING: DO NOT SEND ZERO VELOCITIES HERE AS IN CASE OF ABORTING DURING MOTION
-  // A JUMP TO ZERO WILL BE COMMANDED PUTTING HIGH LOADS ON THE ROBOT. LET THE DEFAULT
-  // BUILT-IN STOPPING BEHAVIOR SLOW DOWN THE ROBOT.
+  return controller_interface::return_type::OK;
 }
 
 }  // namespace franka_example_controllers
 
 PLUGINLIB_EXPORT_CLASS(franka_example_controllers::JointVelocityExampleController,
-                       controller_interface::ControllerBase)
+                       controller_interface::ControllerInterface)

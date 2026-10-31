@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
   <name>franka_example_controllers</name>
   <version>0.7.0</version>
-  <description>franka_example_controllers provides example code for controlling Franka Emika research robots with ros_control</description>
+  <description>franka_example_controllers provides example code for controlling Franka Emika research robots with ros2_control</description>
   <maintainer email="support@franka.de">Franka Emika GmbH</maintainer>
   <license>Apache 2.0</license>
 
@@ -11,33 +11,30 @@
   <url type="bugtracker">https://github.com/frankaemika/franka_ros/issues</url>
   <author>Franka Emika GmbH</author>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
-  <build_depend>message_generation</build_depend>
   <build_depend>eigen</build_depend>
 
-  <build_export_depend>message_runtime</build_export_depend>
-
   <depend>controller_interface</depend>
-  <depend>dynamic_reconfigure</depend>
-  <depend>eigen_conversions</depend>
   <depend>franka_hw</depend>
   <depend>geometry_msgs</depend>
-  <depend>hardware_interface</depend>
-  <depend>tf</depend>
-  <depend>tf_conversions</depend>
-  <depend>libfranka</depend>
   <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
   <depend>realtime_tools</depend>
-  <depend>roscpp</depend>
+  <depend>tf2</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf2_ros</depend>
+  <depend>libfranka</depend>
 
   <exec_depend>franka_control</exec_depend>
   <exec_depend>franka_description</exec_depend>
-  <exec_depend>message_runtime</exec_depend>
-  <exec_depend>panda_moveit_config</exec_depend>
-  <exec_depend>rospy</exec_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <export>
-    <controller_interface plugin="${prefix}/franka_example_controllers_plugin.xml"/>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

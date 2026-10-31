@@ -5,100 +5,59 @@
 #include <cmath>
 #include <memory>
 
-#include <controller_interface/controller_base.h>
 #include <franka/robot_state.h>
-#include <pluginlib/class_list_macros.h>
-#include <ros/ros.h>
+#include <pluginlib/class_list_macros.hpp>
+#include <rclcpp/rclcpp.hpp>
 
+#include <franka_example_controllers/example_controllers_common.h>
 #include "pseudo_inversion.h"
 
 namespace franka_example_controllers {
 
-bool CartesianImpedanceModController::init(hardware_interface::RobotHW* robot_hw,
-                                               ros::NodeHandle& node_handle) {
-  std::vector<double> cartesian_stiffness_vector;
-  std::vector<double> cartesian_damping_vector;
+CallbackReturn CartesianImpedanceModController::on_init() {
+  auto_declare("arm_id", std::string());
+  auto_declare("joint_names", std::vector<std::string>());
+  return CallbackReturn::SUCCESS;
+}
 
-  sub_equilibrium_pose_ = node_handle.subscribe(
-      "/equilibrium_pose", 20, &CartesianImpedanceModController::equilibriumPoseCallback, this,
-      ros::TransportHints().reliable().tcpNoDelay());
+controller_interface::InterfaceConfiguration
+CartesianImpedanceModController::command_interface_configuration() const {
+  return {controller_interface::interface_configuration_type::INDIVIDUAL,
+          jointCommandInterfaces(joint_names_, hardware_interface::HW_IF_EFFORT)};
+}
 
-  sub_desired_stiffness_ = node_handle.subscribe(
-      "/desired_stiffness", 20, &CartesianImpedanceModController::desiredStiffnessCallback, this,
-      ros::TransportHints().reliable().tcpNoDelay());
+controller_interface::InterfaceConfiguration
+CartesianImpedanceModController::state_interface_configuration() const {
+  return {controller_interface::interface_configuration_type::INDIVIDUAL,
+          {frankaStateInterface(arm_id_), frankaModelInterface(arm_id_)}};
+}
 
-  std::string arm_id;
-  if (!node_handle.getParam("arm_id", arm_id)) {
-    ROS_ERROR_STREAM("CartesianImpedanceModController: Could not read parameter arm_id");
-    return false;
-  }
-  std::vector<std::string> joint_names;
-  if (!node_handle.getParam("joint_names", joint_names) || joint_names.size() != 7) {
-    ROS_ERROR(
-        "CartesianImpedanceModController: Invalid or no joint_names parameters provided, "
-        "aborting controller init!");
-    return false;
-  }
-
-  auto* model_interface = robot_hw->get<franka_hw::FrankaModelInterface>();
-  if (model_interface == nullptr) {
-    ROS_ERROR_STREAM(
-        "CartesianImpedanceModController: Error getting model interface from hardware");
-    return false;
-  }
-  try {
-    model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(
-        model_interface->getHandle(arm_id + "_model"));
-  } catch (hardware_interface::HardwareInterfaceException& ex) {
-    ROS_ERROR_STREAM(
-        "CartesianImpedanceModController: Exception getting model handle from interface: "
-        << ex.what());
-    return false;
+CallbackReturn CartesianImpedanceModController::on_configure(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  auto node = get_node();
+  arm_id_ = node->get_parameter("arm_id").as_string();
+  joint_names_ = node->get_parameter("joint_names").as_string_array();
+  if (joint_names_.size() != 7) {
+    RCLCPP_ERROR(node->get_logger(),
+                 "CartesianImpedanceModController: Invalid or no joint_names parameters provided, "
+                 "aborting controller init!");
+    return CallbackReturn::ERROR;
   }
 
-  auto* state_interface = robot_hw->get<franka_hw::FrankaStateInterface>();
-  if (state_interface == nullptr) {
-    ROS_ERROR_STREAM(
-        "CartesianImpedanceModController: Error getting state interface from hardware");
-    return false;
-  }
-  try {
-    state_handle_ = std::make_unique<franka_hw::FrankaStateHandle>(
-        state_interface->getHandle(arm_id + "_robot"));
-  } catch (hardware_interface::HardwareInterfaceException& ex) {
-    ROS_ERROR_STREAM(
-        "CartesianImpedanceModController: Exception getting state handle from interface: "
-        << ex.what());
-    return false;
-  }
+  auto* robot_state = static_cast<franka::RobotState*>(state_interfaces_[0].get_value());
+  auto* model = static_cast<franka::Model*>(state_interfaces_[1].get_value());
+  model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
+                                                                  *robot_state);
 
-  auto* effort_joint_interface = robot_hw->get<hardware_interface::EffortJointInterface>();
-  if (effort_joint_interface == nullptr) {
-    ROS_ERROR_STREAM(
-        "CartesianImpedanceModController: Error getting effort joint interface from hardware");
-    return false;
-  }
-  for (size_t i = 0; i < 7; ++i) {
-    try {
-      joint_handles_.push_back(effort_joint_interface->getHandle(joint_names[i]));
-    } catch (const hardware_interface::HardwareInterfaceException& ex) {
-      ROS_ERROR_STREAM(
-          "CartesianImpedanceModController: Exception getting joint handles: " << ex.what());
-      return false;
-    }
-  }
+  sub_equilibrium_pose_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
+      "/equilibrium_pose", 20,
+      std::bind(&CartesianImpedanceModController::equilibriumPoseCallback, this,
+                std::placeholders::_1));
 
-  //NOTE: disabled for testing
-  dynamic_reconfigure_compliance_param_node_ =
-      ros::NodeHandle("dynamic_reconfigure_compliance_param_node");
-
-  dynamic_server_compliance_param_ = std::make_unique<
-      dynamic_reconfigure::Server<franka_example_controllers::compliance_paramConfig>>(
-
-      dynamic_reconfigure_compliance_param_node_);
-  dynamic_server_compliance_param_->setCallback(
-      boost::bind(&CartesianImpedanceModController::complianceParamCallback, this, _1, _2));
-  
+  sub_desired_stiffness_ = node->create_subscription<geometry_msgs::msg::TwistStamped>(
+      "/desired_stiffness", 20,
+      std::bind(&CartesianImpedanceModController::desiredStiffnessCallback, this,
+                std::placeholders::_1));
 
   position_d_.setZero();
   orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
@@ -106,28 +65,21 @@ bool CartesianImpedanceModController::init(hardware_interface::RobotHW* robot_hw
   orientation_d_target_.coeffs() << 0.0, 0.0, 0.0, 1.0;
 
   double initial_stiffness = 200;
-  cartesian_stiffness_target_ = initial_stiffness*Eigen::Matrix<double,6,6>::Identity();
-  cartesian_damping_target_ = 2.0*sqrt(initial_stiffness)*Eigen::Matrix<double,6,6>::Identity();
+  cartesian_stiffness_target_ = initial_stiffness * Eigen::Matrix<double, 6, 6>::Identity();
+  cartesian_damping_target_ = 2.0 * std::sqrt(initial_stiffness) * Eigen::Matrix<double, 6, 6>::Identity();
   cartesian_stiffness_.setZero();
   cartesian_damping_.setZero();
 
-  return true;
+  return CallbackReturn::SUCCESS;
 }
 
-void CartesianImpedanceModController::starting(const ros::Time& /*time*/) {
+CallbackReturn CartesianImpedanceModController::on_activate(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
   // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
   // to initial configuration
-  franka::RobotState initial_state = state_handle_->getRobotState();
-  // get jacobian
-  std::array<double, 42> jacobian_array =
-      model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
-  // convert to eigen
-  Eigen::Map<Eigen::Matrix<double, 6, 7>> jacobian(jacobian_array.data());
-  Eigen::Map<Eigen::Matrix<double, 7, 1>> dq_initial(initial_state.dq.data());
+  const auto& initial_state = robotStateFromInterface(state_interfaces_[0]);
   Eigen::Map<Eigen::Matrix<double, 7, 1>> q_initial(initial_state.q.data());
   Eigen::Affine3d initial_transform(Eigen::Matrix4d::Map(initial_state.O_T_EE.data()));
-
-  // set equilibrium point to current state
   position_d_ = initial_transform.translation();
   orientation_d_ = Eigen::Quaterniond(initial_transform.linear());
   position_d_target_ = initial_transform.translation();
@@ -135,12 +87,13 @@ void CartesianImpedanceModController::starting(const ros::Time& /*time*/) {
 
   // set nullspace equilibrium configuration to initial q
   q_d_nullspace_ = q_initial;
+  return CallbackReturn::SUCCESS;
 }
 
-void CartesianImpedanceModController::update(const ros::Time& /*time*/,
-                                                 const ros::Duration& /*period*/) {
+controller_interface::return_type CartesianImpedanceModController::update(
+    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   // get state variables
-  franka::RobotState robot_state = state_handle_->getRobotState();
+  const auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> coriolis_array = model_handle_->getCoriolis();
   std::array<double, 42> jacobian_array =
       model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
@@ -181,38 +134,50 @@ void CartesianImpedanceModController::update(const ros::Time& /*time*/,
   Eigen::MatrixXd jacobian_transpose_pinv;
   pseudoInverse(jacobian.transpose(), jacobian_transpose_pinv);
 
+  Eigen::Matrix<double, 6, 6> stiffness;
+  Eigen::Matrix<double, 6, 6> damping;
+  double nullspace_stiffness;
+  {
+    std::lock_guard<std::mutex> lock(target_mutex_);
+    stiffness = cartesian_stiffness_;
+    damping = cartesian_damping_;
+    nullspace_stiffness = nullspace_stiffness_;
+  }
+
   // Cartesian PD control with damping ratio = 1
-  tau_task << jacobian.transpose() *
-                  (-cartesian_stiffness_ * error - cartesian_damping_ * (jacobian * dq));
+  tau_task << jacobian.transpose() * (-stiffness * error - damping * (jacobian * dq));
   // nullspace PD control with damping ratio = 1
   tau_nullspace << (Eigen::MatrixXd::Identity(7, 7) -
                     jacobian.transpose() * jacobian_transpose_pinv) *
-                       (nullspace_stiffness_ * (q_d_nullspace_ - q) -
-                        (2.0 * sqrt(nullspace_stiffness_)) * dq);
+                       (nullspace_stiffness * (q_d_nullspace_ - q) -
+                        (2.0 * std::sqrt(nullspace_stiffness)) * dq);
   // Desired torque
   tau_d << tau_task + tau_nullspace + coriolis;
   // Saturate torque rate to avoid discontinuities
   tau_d << saturateTorqueRate(tau_d, tau_J_d);
   for (size_t i = 0; i < 7; ++i) {
-    joint_handles_[i].setCommand(tau_d(i));
+    command_interfaces_[i].set_value(tau_d(i));
   }
 
-  // update parameters changed online either through dynamic reconfigure or through the interactive
-  // target by filtering
-  cartesian_stiffness_ =
-      filter_params_ * cartesian_stiffness_target_ + (1.0 - filter_params_) * cartesian_stiffness_;
-  cartesian_damping_ =
-      filter_params_ * cartesian_damping_target_ + (1.0 - filter_params_) * cartesian_damping_;
-  nullspace_stiffness_ =
-      filter_params_ * nullspace_stiffness_target_ + (1.0 - filter_params_) * nullspace_stiffness_;
-  position_d_ = filter_params_ * position_d_target_ + (1.0 - filter_params_) * position_d_;
-  Eigen::AngleAxisd aa_orientation_d(orientation_d_);
-  Eigen::AngleAxisd aa_orientation_d_target(orientation_d_target_);
-  aa_orientation_d.axis() = filter_params_ * aa_orientation_d_target.axis() +
-                            (1.0 - filter_params_) * aa_orientation_d.axis();
-  aa_orientation_d.angle() = filter_params_ * aa_orientation_d_target.angle() +
-                             (1.0 - filter_params_) * aa_orientation_d.angle();
-  orientation_d_ = Eigen::Quaterniond(aa_orientation_d);
+  // update parameters changed online through topics by filtering
+  {
+    std::lock_guard<std::mutex> lock(target_mutex_);
+    cartesian_stiffness_ =
+        filter_params_ * cartesian_stiffness_target_ + (1.0 - filter_params_) * cartesian_stiffness_;
+    cartesian_damping_ =
+        filter_params_ * cartesian_damping_target_ + (1.0 - filter_params_) * cartesian_damping_;
+    nullspace_stiffness_ =
+        filter_params_ * nullspace_stiffness_target_ + (1.0 - filter_params_) * nullspace_stiffness_;
+    position_d_ = filter_params_ * position_d_target_ + (1.0 - filter_params_) * position_d_;
+    Eigen::AngleAxisd aa_orientation_d(orientation_d_);
+    Eigen::AngleAxisd aa_orientation_d_target(orientation_d_target_);
+    aa_orientation_d.axis() = filter_params_ * aa_orientation_d_target.axis() +
+                              (1.0 - filter_params_) * aa_orientation_d.axis();
+    aa_orientation_d.angle() = filter_params_ * aa_orientation_d_target.angle() +
+                               (1.0 - filter_params_) * aa_orientation_d.angle();
+    orientation_d_ = Eigen::Quaterniond(aa_orientation_d);
+  }
+  return controller_interface::return_type::OK;
 }
 
 Eigen::Matrix<double, 7, 1> CartesianImpedanceModController::saturateTorqueRate(
@@ -227,25 +192,9 @@ Eigen::Matrix<double, 7, 1> CartesianImpedanceModController::saturateTorqueRate(
   return tau_d_saturated;
 }
 
-void CartesianImpedanceModController::complianceParamCallback(
-    franka_example_controllers::compliance_paramConfig& config,
-    uint32_t /*level*/) {
-  cartesian_stiffness_target_.setIdentity();
-  cartesian_stiffness_target_.topLeftCorner(3, 3)
-      << config.translational_stiffness * Eigen::Matrix3d::Identity();
-  cartesian_stiffness_target_.bottomRightCorner(3, 3)
-      << config.rotational_stiffness * Eigen::Matrix3d::Identity();
-  cartesian_damping_target_.setIdentity();
-  // Damping ratio = 1
-  cartesian_damping_target_.topLeftCorner(3, 3)
-      << 2.0 * sqrt(config.translational_stiffness) * Eigen::Matrix3d::Identity();
-  cartesian_damping_target_.bottomRightCorner(3, 3)
-      << 2.0 * sqrt(config.rotational_stiffness) * Eigen::Matrix3d::Identity();
-  nullspace_stiffness_target_ = config.nullspace_stiffness;
-}
-
 void CartesianImpedanceModController::equilibriumPoseCallback(
-    const geometry_msgs::PoseStampedConstPtr& msg) {
+    const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+  std::lock_guard<std::mutex> lock(target_mutex_);
   position_d_target_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
   Eigen::Quaterniond last_orientation_d_target(orientation_d_target_);
   orientation_d_target_.coeffs() << msg->pose.orientation.x, msg->pose.orientation.y,
@@ -256,31 +205,26 @@ void CartesianImpedanceModController::equilibriumPoseCallback(
 }
 
 void CartesianImpedanceModController::desiredStiffnessCallback(
-    const geometry_msgs::TwistStampedConstPtr& msg) {
+    const geometry_msgs::msg::TwistStamped::SharedPtr msg) {
+  std::lock_guard<std::mutex> lock(target_mutex_);
+  // Stiffness
+  cartesian_stiffness_target_(0, 0) = msg->twist.linear.x;
+  cartesian_stiffness_target_(1, 1) = msg->twist.linear.y;
+  cartesian_stiffness_target_(2, 2) = msg->twist.linear.z;
+  cartesian_stiffness_target_(3, 3) = msg->twist.angular.x;
+  cartesian_stiffness_target_(4, 4) = msg->twist.angular.y;
+  cartesian_stiffness_target_(5, 5) = msg->twist.angular.z;
 
-    //Stiffness
-    cartesian_stiffness_target_(0,0) = msg->twist.linear.x;
-    cartesian_stiffness_target_(1,1) = msg->twist.linear.y;
-    cartesian_stiffness_target_(2,2) = msg->twist.linear.z;
-    cartesian_stiffness_target_(3,3) = msg->twist.angular.x;
-    cartesian_stiffness_target_(4,4) = msg->twist.angular.y;
-    cartesian_stiffness_target_(5,5) = msg->twist.angular.z;
-
-    //Damping
-    cartesian_damping_target_(0,0) = 2.0 * sqrt(cartesian_stiffness_target_(0,0));
-    cartesian_damping_target_(1,1) = 2.0 * sqrt(cartesian_stiffness_target_(1,1));
-    cartesian_damping_target_(2,2) = 2.0 * sqrt(cartesian_stiffness_target_(2,2));
-    cartesian_damping_target_(3,3) = 2.0 * sqrt(cartesian_stiffness_target_(3,3));
-    cartesian_damping_target_(4,4) = 2.0 * sqrt(cartesian_stiffness_target_(4,4));
-    cartesian_damping_target_(5,5) = 2.0 * sqrt(cartesian_stiffness_target_(5,5));
-
-//    std::cerr<<"current stiffness\n"<<cartesian_stiffness_<<std::endl;
-//    std::cerr<<"target stiffness\n"<<cartesian_stiffness_target_<<std::endl;
-//    std::cerr<<"current damping\n"<<cartesian_damping_<<std::endl;
-//    std::cerr<<"target damping\n"<<cartesian_damping_target_<<std::endl;
+  // Damping
+  cartesian_damping_target_(0, 0) = 2.0 * std::sqrt(cartesian_stiffness_target_(0, 0));
+  cartesian_damping_target_(1, 1) = 2.0 * std::sqrt(cartesian_stiffness_target_(1, 1));
+  cartesian_damping_target_(2, 2) = 2.0 * std::sqrt(cartesian_stiffness_target_(2, 2));
+  cartesian_damping_target_(3, 3) = 2.0 * std::sqrt(cartesian_stiffness_target_(3, 3));
+  cartesian_damping_target_(4, 4) = 2.0 * std::sqrt(cartesian_stiffness_target_(4, 4));
+  cartesian_damping_target_(5, 5) = 2.0 * std::sqrt(cartesian_stiffness_target_(5, 5));
 }
 
 }  // namespace franka_example_controllers
 
 PLUGINLIB_EXPORT_CLASS(franka_example_controllers::CartesianImpedanceModController,
-                       controller_interface::ControllerBase)
+                       controller_interface::ControllerInterface)

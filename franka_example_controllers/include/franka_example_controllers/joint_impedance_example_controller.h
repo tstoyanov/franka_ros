@@ -2,32 +2,33 @@
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
 #pragma once
 
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <controller_interface/multi_interface_controller.h>
-#include <hardware_interface/joint_command_interface.h>
-#include <hardware_interface/robot_hw.h>
-#include <realtime_tools/realtime_publisher.h>
-#include <ros/node_handle.h>
-#include <ros/time.h>
+#include <controller_interface/controller_interface.hpp>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <rclcpp/duration.hpp>
+#include <rclcpp/time.hpp>
+#include <rclcpp_lifecycle/state.hpp>
+#include <realtime_tools/realtime_publisher.hpp>
 
-#include <franka_example_controllers/JointTorqueComparison.h>
-#include <franka_hw/franka_cartesian_command_interface.h>
+#include <franka_example_controllers/msg/joint_torque_comparison.hpp>
 #include <franka_hw/franka_model_interface.h>
 #include <franka_hw/trigger_rate.h>
 
 namespace franka_example_controllers {
 
-class JointImpedanceExampleController : public controller_interface::MultiInterfaceController<
-                                            franka_hw::FrankaModelInterface,
-                                            hardware_interface::EffortJointInterface,
-                                            franka_hw::FrankaPoseCartesianInterface> {
+class JointImpedanceExampleController : public controller_interface::ControllerInterface {
  public:
-  bool init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& node_handle) override;
-  void starting(const ros::Time&) override;
-  void update(const ros::Time&, const ros::Duration& period) override;
+  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
+  controller_interface::return_type update(const rclcpp::Time& time,
+                                           const rclcpp::Duration& period) override;
+  CallbackReturn on_init() override;
+  CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+  CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
 
  private:
   // Saturation
@@ -35,9 +36,9 @@ class JointImpedanceExampleController : public controller_interface::MultiInterf
       const std::array<double, 7>& tau_d_calculated,
       const std::array<double, 7>& tau_J_d);  // NOLINT (readability-identifier-naming)
 
-  std::unique_ptr<franka_hw::FrankaCartesianPoseHandle> cartesian_pose_handle_;
+  std::string arm_id_;
+  std::vector<std::string> joint_names_;
   std::unique_ptr<franka_hw::FrankaModelHandle> model_handle_;
-  std::vector<hardware_interface::JointHandle> joint_handles_;
 
   static constexpr double kDeltaTauMax{1.0};
   double radius_{0.1};
@@ -54,7 +55,8 @@ class JointImpedanceExampleController : public controller_interface::MultiInterf
 
   franka_hw::TriggerRate rate_trigger_{1.0};
   std::array<double, 7> last_tau_d_{};
-  realtime_tools::RealtimePublisher<JointTorqueComparison> torques_publisher_;
+  realtime_tools::RealtimePublisher<franka_example_controllers::msg::JointTorqueComparison>
+      torques_publisher_;
 };
 
 }  // namespace franka_example_controllers

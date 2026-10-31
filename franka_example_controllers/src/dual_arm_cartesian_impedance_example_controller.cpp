@@ -6,76 +6,28 @@
 #include <functional>
 #include <memory>
 
-#include <controller_interface/controller_base.h>
-#include <eigen_conversions/eigen_msg.h>
 #include <franka/robot_state.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <pluginlib/class_list_macros.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <tf2_eigen/tf2_eigen.hpp>
+
+#include <franka_example_controllers/example_controllers_common.h>
 #include <franka_example_controllers/pseudo_inversion.h>
-#include <franka_hw/trigger_rate.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <pluginlib/class_list_macros.h>
-#include <ros/ros.h>
-#include <ros/transport_hints.h>
-#include <tf/transform_listener.h>
-#include <tf_conversions/tf_eigen.h>
 
 namespace franka_example_controllers {
 
-bool DualArmCartesianImpedanceExampleController::initArm(
-    hardware_interface::RobotHW* robot_hw,
-    const std::string& arm_id,
-    const std::vector<std::string>& joint_names) {
+bool DualArmCartesianImpedanceExampleController::initArm(const std::string& arm_id,
+                                                         const std::vector<std::string>& joint_names,
+                                                         size_t state_offset,
+                                                         size_t command_offset) {
   FrankaDataContainer arm_data;
-  auto* model_interface = robot_hw->get<franka_hw::FrankaModelInterface>();
-  if (model_interface == nullptr) {
-    ROS_ERROR_STREAM(
-        "DualArmCartesianImpedanceExampleController: Error getting model interface from hardware");
-    return false;
-  }
-  try {
-    arm_data.model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(
-        model_interface->getHandle(arm_id + "_model"));
-  } catch (hardware_interface::HardwareInterfaceException& ex) {
-    ROS_ERROR_STREAM(
-        "DualArmCartesianImpedanceExampleController: Exception getting model handle from "
-        "interface: "
-        << ex.what());
-    return false;
-  }
-
-  auto* state_interface = robot_hw->get<franka_hw::FrankaStateInterface>();
-  if (state_interface == nullptr) {
-    ROS_ERROR_STREAM(
-        "DualArmCartesianImpedanceExampleController: Error getting state interface from hardware");
-    return false;
-  }
-  try {
-    arm_data.state_handle_ = std::make_unique<franka_hw::FrankaStateHandle>(
-        state_interface->getHandle(arm_id + "_robot"));
-  } catch (hardware_interface::HardwareInterfaceException& ex) {
-    ROS_ERROR_STREAM(
-        "DualArmCartesianImpedanceExampleController: Exception getting state handle from "
-        "interface: "
-        << ex.what());
-    return false;
-  }
-
-  auto* effort_joint_interface = robot_hw->get<hardware_interface::EffortJointInterface>();
-  if (effort_joint_interface == nullptr) {
-    ROS_ERROR_STREAM(
-        "DualArmCartesianImpedanceExampleController: Error getting effort joint interface from "
-        "hardware");
-    return false;
-  }
-  for (size_t i = 0; i < 7; ++i) {
-    try {
-      arm_data.joint_handles_.push_back(effort_joint_interface->getHandle(joint_names[i]));
-    } catch (const hardware_interface::HardwareInterfaceException& ex) {
-      ROS_ERROR_STREAM(
-          "DualArmCartesianImpedanceExampleController: Exception getting joint handles: "
-          << ex.what());
-      return false;
-    }
-  }
+  arm_data.robot_state_ = static_cast<franka::RobotState*>(
+      state_interfaces_[state_offset].get_value());
+  auto* model = static_cast<franka::Model*>(state_interfaces_[state_offset + 1].get_value());
+  arm_data.model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(
+      arm_id + "_model", *model, *arm_data.robot_state_);
+  arm_data.command_offset_ = command_offset;
 
   arm_data.position_d_.setZero();
   arm_data.orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
@@ -86,104 +38,125 @@ bool DualArmCartesianImpedanceExampleController::initArm(
   arm_data.cartesian_damping_.setZero();
 
   arms_data_.emplace(std::make_pair(arm_id, std::move(arm_data)));
-
   return true;
 }
 
-bool DualArmCartesianImpedanceExampleController::init(hardware_interface::RobotHW* robot_hw,
-                                                      ros::NodeHandle& node_handle) {
-  std::vector<double> cartesian_stiffness_vector;
-  std::vector<double> cartesian_damping_vector;
+CallbackReturn DualArmCartesianImpedanceExampleController::on_init() {
+  auto_declare("left.arm_id", std::string());
+  auto_declare("left.joint_names", std::vector<std::string>());
+  auto_declare("right.arm_id", std::string());
+  auto_declare("right.joint_names", std::vector<std::string>());
+  auto_declare("left.translational_stiffness", 200.0);
+  auto_declare("left.rotational_stiffness", 10.0);
+  auto_declare("left.nullspace_stiffness", 0.0);
+  auto_declare("right.translational_stiffness", 200.0);
+  auto_declare("right.rotational_stiffness", 10.0);
+  auto_declare("right.nullspace_stiffness", 0.0);
+  return CallbackReturn::SUCCESS;
+}
 
-  if (!node_handle.getParam("left/arm_id", left_arm_id_)) {
-    ROS_ERROR_STREAM(
-        "DualArmCartesianImpedanceExampleController: Could not read parameter left_arm_id_");
-    return false;
+controller_interface::InterfaceConfiguration
+DualArmCartesianImpedanceExampleController::command_interface_configuration() const {
+  std::vector<std::string> interfaces;
+  for (const auto& joint : left_joint_names_) {
+    interfaces.push_back(joint + "/" + hardware_interface::HW_IF_EFFORT);
   }
-  std::vector<std::string> left_joint_names;
-  if (!node_handle.getParam("left/joint_names", left_joint_names) || left_joint_names.size() != 7) {
-    ROS_ERROR(
-        "DualArmCartesianImpedanceExampleController: Invalid or no left_joint_names parameters "
-        "provided, "
-        "aborting controller init!");
-    return false;
+  for (const auto& joint : right_joint_names_) {
+    interfaces.push_back(joint + "/" + hardware_interface::HW_IF_EFFORT);
+  }
+  return {controller_interface::interface_configuration_type::INDIVIDUAL, interfaces};
+}
+
+controller_interface::InterfaceConfiguration
+DualArmCartesianImpedanceExampleController::state_interface_configuration() const {
+  return {controller_interface::interface_configuration_type::INDIVIDUAL,
+          {frankaStateInterface(left_arm_id_), frankaModelInterface(left_arm_id_),
+           frankaStateInterface(right_arm_id_), frankaModelInterface(right_arm_id_)}};
+}
+
+void DualArmCartesianImpedanceExampleController::applyComplianceParameters() {
+  auto node = get_node();
+  auto set_arm = [&](const std::string& prefix, FrankaDataContainer& arm_data) {
+    double translational = node->get_parameter(prefix + ".translational_stiffness").as_double();
+    double rotational = node->get_parameter(prefix + ".rotational_stiffness").as_double();
+    arm_data.cartesian_stiffness_target_.setIdentity();
+    arm_data.cartesian_stiffness_target_.topLeftCorner(3, 3) << translational * Eigen::Matrix3d::Identity();
+    arm_data.cartesian_stiffness_target_.bottomRightCorner(3, 3) << rotational * Eigen::Matrix3d::Identity();
+    arm_data.cartesian_damping_target_.setIdentity();
+    arm_data.cartesian_damping_target_.topLeftCorner(3, 3) << 2.0 * std::sqrt(translational) * Eigen::Matrix3d::Identity();
+    arm_data.cartesian_damping_target_.bottomRightCorner(3, 3) << 2.0 * std::sqrt(rotational) * Eigen::Matrix3d::Identity();
+    arm_data.nullspace_stiffness_target_ = node->get_parameter(prefix + ".nullspace_stiffness").as_double();
+  };
+  std::lock_guard<std::mutex> lock(target_mutex_);
+  set_arm("left", arms_data_.at(left_arm_id_));
+  set_arm("right", arms_data_.at(right_arm_id_));
+}
+
+CallbackReturn DualArmCartesianImpedanceExampleController::on_configure(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  auto node = get_node();
+  left_arm_id_ = node->get_parameter("left.arm_id").as_string();
+  left_joint_names_ = node->get_parameter("left.joint_names").as_string_array();
+  right_arm_id_ = node->get_parameter("right.arm_id").as_string();
+  right_joint_names_ = node->get_parameter("right.joint_names").as_string_array();
+  if (left_joint_names_.size() != 7 || right_joint_names_.size() != 7) {
+    RCLCPP_ERROR(node->get_logger(),
+                 "DualArmCartesianImpedanceExampleController: Invalid or no joint_names parameters "
+                 "provided, aborting controller init!");
+    return CallbackReturn::ERROR;
   }
 
-  if (!node_handle.getParam("right/arm_id", right_arm_id_)) {
-    ROS_ERROR_STREAM(
-        "DualArmCartesianImpedanceExampleController: Could not read parameter right_arm_id_");
-    return false;
+  sub_target_pose_left_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
+      "centering_frame_target_pose", 1,
+      std::bind(&DualArmCartesianImpedanceExampleController::targetPoseCallback, this,
+                std::placeholders::_1));
+
+  bool left_success = initArm(left_arm_id_, left_joint_names_, 0, 0);
+  bool right_success = initArm(right_arm_id_, right_joint_names_, 2, 7);
+  if (!left_success || !right_success) {
+    return CallbackReturn::ERROR;
   }
 
-  boost::function<void(const geometry_msgs::PoseStamped::ConstPtr&)> callback =
-      boost::bind(&DualArmCartesianImpedanceExampleController::targetPoseCallback, this, _1);
-
-  ros::SubscribeOptions subscribe_options;
-  subscribe_options.init("centering_frame_target_pose", 1, callback);
-  subscribe_options.transport_hints = ros::TransportHints().reliable().tcpNoDelay();
-  sub_target_pose_left_ = node_handle.subscribe(subscribe_options);
-
-  std::vector<std::string> right_joint_names;
-  if (!node_handle.getParam("right/joint_names", right_joint_names) ||
-      right_joint_names.size() != 7) {
-    ROS_ERROR(
-        "DualArmCartesianImpedanceExampleController: Invalid or no right_joint_names parameters "
-        "provided, "
-        "aborting controller init!");
-    return false;
-  }
-
-  bool left_success = initArm(robot_hw, left_arm_id_, left_joint_names);
-  bool right_success = initArm(robot_hw, right_arm_id_, right_joint_names);
-
-  dynamic_reconfigure_compliance_param_node_ =
-      ros::NodeHandle("dynamic_reconfigure_compliance_param_node");
-
-  dynamic_server_compliance_param_ = std::make_unique<dynamic_reconfigure::Server<
-      franka_combined_example_controllers::dual_arm_compliance_paramConfig>>(
-      dynamic_reconfigure_compliance_param_node_);
-
-  dynamic_server_compliance_param_->setCallback(boost::bind(
-      &DualArmCartesianImpedanceExampleController::complianceParamCallback, this, _1, _2));
+  param_callback_handle_ = node->add_on_set_parameters_callback(
+      [this](const std::vector<rclcpp::Parameter>&) {
+        applyComplianceParameters();
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        return result;
+      });
+  applyComplianceParameters();
 
   // Get the transformation from right_O_frame to left_O_frame
-  tf::StampedTransform transform;
-  tf::TransformListener listener;
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   try {
-    if (listener.waitForTransform(left_arm_id_ + "_link0", right_arm_id_ + "_link0", ros::Time(0),
-                                  ros::Duration(4.0))) {
-      listener.lookupTransform(left_arm_id_ + "_link0", right_arm_id_ + "_link0", ros::Time(0),
-                               transform);
-    } else {
-      ROS_ERROR(
-          "DualArmCartesianImpedanceExampleController: Failed to read transform from %s to %s. "
-          "Aborting init!",
-          (right_arm_id_ + "_link0").c_str(), (left_arm_id_ + "_link0").c_str());
-      return false;
-    }
-  } catch (tf::TransformException& ex) {
-    ROS_ERROR("DualArmCartesianImpedanceExampleController: %s", ex.what());
-    return false;
+    geometry_msgs::msg::TransformStamped transform_msg = tf_buffer_->lookupTransform(
+        left_arm_id_ + "_link0", right_arm_id_ + "_link0", tf2::TimePointZero,
+        std::chrono::seconds(4));
+    Ol_T_Or_ = tf2::transformToEigen(transform_msg);
+  } catch (const tf2::TransformException& ex) {
+    RCLCPP_ERROR(node->get_logger(),
+                 "DualArmCartesianImpedanceExampleController: Failed to read transform from %s to "
+                 "%s: %s. Aborting init!",
+                 (right_arm_id_ + "_link0").c_str(), (left_arm_id_ + "_link0").c_str(), ex.what());
+    return CallbackReturn::ERROR;
   }
-  tf::transformTFToEigen(transform, Ol_T_Or_);  // NOLINT (readability-identifier-naming)
 
   // Setup publisher for the centering frame.
-  publish_rate_ = franka_hw::TriggerRate(30.0);
-  center_frame_pub_.init(node_handle, "centering_frame", 1, true);
+  center_frame_pub_.init(node, "centering_frame", 1);
 
-  return left_success && right_success;
+  return CallbackReturn::SUCCESS;
 }
 
 void DualArmCartesianImpedanceExampleController::startingArm(FrankaDataContainer& arm_data) {
   // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
   // to initial configuration
-  franka::RobotState initial_state = arm_data.state_handle_->getRobotState();
+  const auto& initial_state = *arm_data.robot_state_;
   // get jacobian
   std::array<double, 42> jacobian_array =
       arm_data.model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
   // convert to eigen
   Eigen::Map<Eigen::Matrix<double, 6, 7>> jacobian(jacobian_array.data());
-  Eigen::Map<Eigen::Matrix<double, 7, 1>> dq_initial(initial_state.dq.data());
   Eigen::Map<Eigen::Matrix<double, 7, 1>> q_initial(initial_state.q.data());
   Eigen::Affine3d initial_transform(Eigen::Matrix4d::Map(initial_state.O_T_EE.data()));
 
@@ -197,13 +170,13 @@ void DualArmCartesianImpedanceExampleController::startingArm(FrankaDataContainer
   arm_data.q_d_nullspace_ = q_initial;
 }
 
-void DualArmCartesianImpedanceExampleController::starting(const ros::Time& /*time*/) {
+CallbackReturn DualArmCartesianImpedanceExampleController::on_activate(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
   for (auto& arm_data : arms_data_) {
     startingArm(arm_data.second);
   }
-  franka::RobotState robot_state_right =
-      arms_data_.at(right_arm_id_).state_handle_->getRobotState();
-  franka::RobotState robot_state_left = arms_data_.at(left_arm_id_).state_handle_->getRobotState();
+  const auto& robot_state_right = *arms_data_.at(right_arm_id_).robot_state_;
+  const auto& robot_state_left = *arms_data_.at(left_arm_id_).robot_state_;
   Eigen::Affine3d Ol_T_EEl(Eigen::Matrix4d::Map(  // NOLINT (readability-identifier-naming)
       robot_state_left.O_T_EE.data()));           // NOLINT (readability-identifier-naming)
   Eigen::Affine3d Or_T_EEr(Eigen::Matrix4d::Map(  // NOLINT (readability-identifier-naming)
@@ -214,21 +187,23 @@ void DualArmCartesianImpedanceExampleController::starting(const ros::Time& /*tim
   Eigen::Vector3d EEr_r_EEr_EEl =  // NOLINT (readability-identifier-naming)
       EEr_T_EEl_.translation();    // NOLINT (readability-identifier-naming)
   EEl_T_C_.translation() = -0.5 * EEr_T_EEl_.inverse().rotation() * EEr_r_EEr_EEl;
+  return CallbackReturn::SUCCESS;
 }
 
-void DualArmCartesianImpedanceExampleController::update(const ros::Time& /*time*/,
-                                                        const ros::Duration& /*period*/) {
+controller_interface::return_type DualArmCartesianImpedanceExampleController::update(
+    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   for (auto& arm_data : arms_data_) {
     updateArm(arm_data.second);
   }
   if (publish_rate_()) {
     publishCenteringPose();
   }
+  return controller_interface::return_type::OK;
 }
 
 void DualArmCartesianImpedanceExampleController::updateArm(FrankaDataContainer& arm_data) {
   // get state variables
-  franka::RobotState robot_state = arm_data.state_handle_->getRobotState();
+  const auto& robot_state = *arm_data.robot_state_;
   std::array<double, 49> inertia_array = arm_data.model_handle_->getMass();
   std::array<double, 7> coriolis_array = arm_data.model_handle_->getCoriolis();
   std::array<double, 42> jacobian_array =
@@ -270,24 +245,34 @@ void DualArmCartesianImpedanceExampleController::updateArm(FrankaDataContainer& 
   Eigen::MatrixXd jacobian_transpose_pinv;
   franka_example_controllers::pseudoInverse(jacobian.transpose(), jacobian_transpose_pinv);
 
+  Eigen::Matrix<double, 6, 6> stiffness;
+  Eigen::Matrix<double, 6, 6> damping;
+  double nullspace_stiffness;
+  {
+    std::lock_guard<std::mutex> lock(target_mutex_);
+    stiffness = arm_data.cartesian_stiffness_;
+    damping = arm_data.cartesian_damping_;
+    nullspace_stiffness = arm_data.nullspace_stiffness_;
+  }
+
   // Cartesian PD control with damping ratio = 1
-  tau_task << jacobian.transpose() * (-arm_data.cartesian_stiffness_ * error -
-                                      arm_data.cartesian_damping_ * (jacobian * dq));
+  tau_task << jacobian.transpose() * (-stiffness * error - damping * (jacobian * dq));
   // nullspace PD control with damping ratio = 1
   tau_nullspace << (Eigen::MatrixXd::Identity(7, 7) -
                     jacobian.transpose() * jacobian_transpose_pinv) *
-                       (arm_data.nullspace_stiffness_ * (arm_data.q_d_nullspace_ - q) -
-                        (2.0 * sqrt(arm_data.nullspace_stiffness_)) * dq);
+                       (nullspace_stiffness * (arm_data.q_d_nullspace_ - q) -
+                        (2.0 * std::sqrt(nullspace_stiffness)) * dq);
   // Desired torque
   tau_d << tau_task + tau_nullspace + coriolis;
   // Saturate torque rate to avoid discontinuities
   tau_d << saturateTorqueRate(arm_data, tau_d, tau_J_d);
   for (size_t i = 0; i < 7; ++i) {
-    arm_data.joint_handles_[i].setCommand(tau_d(i));
+    command_interfaces_[arm_data.command_offset_ + i].set_value(tau_d(i));
   }
 
-  // update parameters changed online either through dynamic reconfigure or through the interactive
+  // update parameters changed online either through ROS parameters or through the interactive
   // target by filtering
+  std::lock_guard<std::mutex> lock(target_mutex_);
   arm_data.cartesian_stiffness_ = arm_data.filter_params_ * arm_data.cartesian_stiffness_target_ +
                                   (1.0 - arm_data.filter_params_) * arm_data.cartesian_stiffness_;
   arm_data.cartesian_damping_ = arm_data.filter_params_ * arm_data.cartesian_damping_target_ +
@@ -313,53 +298,21 @@ Eigen::Matrix<double, 7, 1> DualArmCartesianImpedanceExampleController::saturate
   return tau_d_saturated;
 }
 
-void DualArmCartesianImpedanceExampleController::complianceParamCallback(
-    franka_combined_example_controllers::dual_arm_compliance_paramConfig& config,
-    uint32_t /*level*/) {
-  auto& left_arm_data = arms_data_.at(left_arm_id_);
-  left_arm_data.cartesian_stiffness_target_.setIdentity();
-  left_arm_data.cartesian_stiffness_target_.topLeftCorner(3, 3)
-      << config.left_translational_stiffness * Eigen::Matrix3d::Identity();
-  left_arm_data.cartesian_stiffness_target_.bottomRightCorner(3, 3)
-      << config.left_rotational_stiffness * Eigen::Matrix3d::Identity();
-  left_arm_data.cartesian_damping_target_.setIdentity();
-
-  left_arm_data.cartesian_damping_target_.topLeftCorner(3, 3)
-      << 2 * sqrt(config.left_translational_stiffness) * Eigen::Matrix3d::Identity();
-  left_arm_data.cartesian_damping_target_.bottomRightCorner(3, 3)
-      << 2 * sqrt(config.left_rotational_stiffness) * Eigen::Matrix3d::Identity();
-  left_arm_data.nullspace_stiffness_target_ = config.left_nullspace_stiffness;
-
-  auto& right_arm_data = arms_data_.at(right_arm_id_);
-  right_arm_data.cartesian_stiffness_target_.setIdentity();
-  right_arm_data.cartesian_stiffness_target_.topLeftCorner(3, 3)
-      << config.right_translational_stiffness * Eigen::Matrix3d::Identity();
-  right_arm_data.cartesian_stiffness_target_.bottomRightCorner(3, 3)
-      << config.right_rotational_stiffness * Eigen::Matrix3d::Identity();
-  right_arm_data.cartesian_damping_target_.setIdentity();
-
-  right_arm_data.cartesian_damping_target_.topLeftCorner(3, 3)
-      << 2 * sqrt(config.right_translational_stiffness) * Eigen::Matrix3d::Identity();
-  right_arm_data.cartesian_damping_target_.bottomRightCorner(3, 3)
-      << 2 * sqrt(config.right_rotational_stiffness) * Eigen::Matrix3d::Identity();
-  right_arm_data.nullspace_stiffness_target_ = config.right_nullspace_stiffness;
-}
-
 void DualArmCartesianImpedanceExampleController::targetPoseCallback(
-    const geometry_msgs::PoseStamped::ConstPtr& msg) {
+    const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
   try {
     if (msg->header.frame_id != left_arm_id_ + "_link0") {
-      ROS_ERROR_STREAM(
-          "DualArmCartesianImpedanceExampleController: Got pose target with invalid"
-          " frame_id "
-          << msg->header.frame_id << ". Expected " << left_arm_id_ + "_link0");
+      RCLCPP_ERROR_STREAM(get_node()->get_logger(),
+                          "DualArmCartesianImpedanceExampleController: Got pose target with invalid"
+                          " frame_id "
+                          << msg->header.frame_id << ". Expected " << left_arm_id_ + "_link0");
       return;
     }
 
+    std::lock_guard<std::mutex> lock(target_mutex_);
     // Set target for the left robot.
     auto& left_arm_data = arms_data_.at(left_arm_id_);
-    Eigen::Affine3d Ol_T_C;  // NOLINT (readability-identifier-naming)
-    tf::poseMsgToEigen(msg->pose, Ol_T_C);
+    Eigen::Affine3d Ol_T_C = tf2::transformToEigen(msg->pose);
     Eigen::Affine3d Ol_T_EEl_d =      // NOLINT (readability-identifier-naming)
         Ol_T_C * EEl_T_C_.inverse();  // NOLINT (readability-identifier-naming)
     left_arm_data.position_d_target_ = Ol_T_EEl_d.translation();
@@ -389,19 +342,20 @@ void DualArmCartesianImpedanceExampleController::targetPoseCallback(
     }
 
   } catch (std::out_of_range& ex) {
-    ROS_ERROR_STREAM("DualArmCartesianImpedanceExampleController: Exception setting target poses.");
+    RCLCPP_ERROR_STREAM(get_node()->get_logger(),
+                        "DualArmCartesianImpedanceExampleController: Exception setting target poses.");
   }
 }
 
 void DualArmCartesianImpedanceExampleController::publishCenteringPose() {
   if (center_frame_pub_.trylock()) {
-    franka::RobotState robot_state_left =
-        arms_data_.at(left_arm_id_).state_handle_->getRobotState();
+    const auto& robot_state_left = *arms_data_.at(left_arm_id_).robot_state_;
     Eigen::Affine3d Ol_T_EEl(Eigen::Matrix4d::Map(  // NOLINT (readability-identifier-naming)
         robot_state_left.O_T_EE.data()));           // NOLINT (readability-identifier-naming)
     Eigen::Affine3d Ol_T_C = Ol_T_EEl * EEl_T_C_;   // NOLINT (readability-identifier-naming)
-    tf::poseEigenToMsg(Ol_T_C, center_frame_pub_.msg_.pose);
+    center_frame_pub_.msg_.pose = tf2::toMsg(Ol_T_C);
     center_frame_pub_.msg_.header.frame_id = left_arm_id_ + "_link0";
+    center_frame_pub_.msg_.header.stamp = get_node()->now();
     center_frame_pub_.unlockAndPublish();
   }
 }
@@ -409,4 +363,4 @@ void DualArmCartesianImpedanceExampleController::publishCenteringPose() {
 }  // namespace franka_example_controllers
 
 PLUGINLIB_EXPORT_CLASS(franka_example_controllers::DualArmCartesianImpedanceExampleController,
-                       controller_interface::ControllerBase)
+                       controller_interface::ControllerInterface)
