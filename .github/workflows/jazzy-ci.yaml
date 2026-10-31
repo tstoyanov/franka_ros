@@ -17,7 +17,7 @@ jobs:
     name: Build and test (colcon)
     runs-on: ubuntu-24.04
     container:
-      image: ${{ env.CI_IMAGE }}
+      image: tstoyanov/jazzy_libfranka:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
     name: Lint (ament linters)
     runs-on: ubuntu-24.04
     container:
-      image: ${{ env.CI_IMAGE }}
+      image: tstoyanov/jazzy_libfranka:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
