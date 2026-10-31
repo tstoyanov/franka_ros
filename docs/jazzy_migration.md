@@ -168,3 +168,9 @@ newer-libfranka APIs seen in `franka_arm_ros2`; where ros2_control forces an API
   all launch files -> python launch, README/docs updated.
 
 libfranka stays pinned at `find_package(Franka 0.7.0 REQUIRED)` in every C++ package.
+
+## 12. CI status
+
+`jazzy-ci.yaml` is green on the `jazzy` branch (run 41203935559): **Build and test (colcon)**
+(8 packages built, `franka_hw_test` gtest suite passing) and **Lint (ament linters)** both
+succeed in `tstoyanov/jazzy_libfranka:latest`.
