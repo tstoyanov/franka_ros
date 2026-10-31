@@ -12,7 +12,10 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 #include <rclcpp_lifecycle/state.hpp>
+using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+
 #include <realtime_tools/realtime_publisher.hpp>
 #include <Eigen/Dense>
 #include <tf2_ros/buffer.h>

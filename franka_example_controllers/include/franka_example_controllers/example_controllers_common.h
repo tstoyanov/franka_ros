@@ -76,7 +76,6 @@ inline const franka::RobotState& robotStateFromInterface(
 // Reads/writes the 16-dof cartesian pose command interfaces into an array.
 inline std::array<double, 16> getCartesianPoseCommand(
     const std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces) {
-    const std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces) {
   std::array<double, 16> pose{};
   for (size_t i = 0; i < 16; i++) {
     pose[i] = command_interfaces[i].get_value();
