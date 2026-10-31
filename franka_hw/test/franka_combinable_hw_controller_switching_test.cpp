@@ -48,7 +48,9 @@ std::vector<std::string> jointEffortInterfaces() {
 }  // namespace
 
 TEST(FrankaCombinableHWControllerSwitching, OnlyTorqueModeIsAdmissible) {
-  FrankaCombinableHW robot;
+  // Test the mode decision logic without constructing FrankaCombinableHW
+  // (its ctor/init path spawns a control thread that needs a real robot).
+  FrankaHW robot;
   ASSERT_EQ(robot.initParameters(makeTestHardwareInfo()), CallbackReturn::SUCCESS);
 
   // torque claim is admissible
