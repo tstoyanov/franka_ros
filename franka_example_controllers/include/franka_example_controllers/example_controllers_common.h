@@ -10,6 +10,9 @@
 #include <controller_interface/controller_interface.hpp>
 #include <franka_hw/franka_cartesian_command_interface.h>
 #include <franka_hw/franka_state_interface.h>
+#include <franka_hw/franka_model_interface.h>
+#include <hardware_interface/loaned_state_interface.hpp>
+#include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -66,14 +69,14 @@ inline T* decodePointer(double value) {
 
 // Reads the franka::RobotState pointer exported on the franka state interface.
 inline const franka::RobotState& robotStateFromInterface(
-    const controller_interface::LoanedStateInterface& state_interface) {
+    const hardware_interface::LoanedStateInterface& state_interface) {
   return *decodePointer<franka::RobotState>(state_interface.get_value());
 }
 
 // Reads/writes the 16-dof cartesian pose command interfaces into an array.
 inline std::array<double, 16> getCartesianPoseCommand(
-    const std::vector<controller_interface::LoanedCommandInterface>& command_interfaces) {
-    const std::vector<controller_interface::LoanedCommandInterface>& command_interfaces) {
+    const std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces) {
+    const std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces) {
   std::array<double, 16> pose{};
   for (size_t i = 0; i < 16; i++) {
     pose[i] = command_interfaces[i].get_value();
@@ -81,7 +84,7 @@ inline std::array<double, 16> getCartesianPoseCommand(
   return pose;
 }
 inline void setCartesianPoseCommand(
-    std::vector<controller_interface::LoanedCommandInterface>& command_interfaces,
+    std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces,
     const std::array<double, 16>& pose,
     const std::array<double, 2>& elbow = {0.0, 0.0}) {
   for (size_t i = 0; i < 16; i++) {
@@ -91,7 +94,7 @@ inline void setCartesianPoseCommand(
   command_interfaces[17].set_value(elbow[1]);
 }
 inline std::array<double, 6> getCartesianVelocityCommand(
-    const std::vector<controller_interface::LoanedCommandInterface>& command_interfaces) {
+    const std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces) {
   std::array<double, 6> vel{};
   for (size_t i = 0; i < 6; i++) {
     vel[i] = command_interfaces[i].get_value();
@@ -99,7 +102,7 @@ inline std::array<double, 6> getCartesianVelocityCommand(
   return vel;
 }
 inline void setCartesianVelocityCommand(
-    std::vector<controller_interface::LoanedCommandInterface>& command_interfaces,
+    std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces,
     const std::array<double, 6>& vel,
     const std::array<double, 2>& elbow = {0.0, 0.0}) {
   for (size_t i = 0; i < 6; i++) {
