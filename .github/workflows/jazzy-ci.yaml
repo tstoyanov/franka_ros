@@ -33,6 +33,7 @@ jobs:
           rm -rf /var/lib/apt/lists/*
 
       - name: Install ROS dependencies (rosdep)
+        shell: bash
         run: |
           source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
           rosdep update || true
@@ -40,11 +41,13 @@ jobs:
             --rosdistro ${{ env.ROS_DISTRO }} || true
 
       - name: Build workspace
+        shell: bash
         run: |
           source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
           colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
       - name: Run tests
+        shell: bash
         run: |
           source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
           source install/setup.bash
@@ -81,6 +84,7 @@ jobs:
           rm -rf /var/lib/apt/lists/*
 
       - name: Run linters
+        shell: bash
         run: |
           source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
           colcon test --packages-select \
