@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <controller_interface/controller_interface_base.hpp>
+#include <controller_interface/controller_interface_params.hpp>
 #include <hardware_interface/handle.hpp>
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/loaned_state_interface.hpp>
@@ -37,6 +38,15 @@ void declareControllerParameters(franka_example_controllers::JointImpedanceExamp
                         rclcpp::Parameter("coriolis_factor", 1.0)});
 }
 
+bool initController(franka_example_controllers::JointImpedanceExampleController& controller,
+                    const std::string& name) {
+  controller_interface::ControllerInterfaceParams params;
+  params.controller_name = name;
+  params.update_rate = 100;
+  params.controller_manager_update_rate = 100;
+  return controller.init(params) == controller_interface::return_type::OK;
+}
+
 }  // namespace
 
 // The controller must claim the joint effort command interfaces AND the cartesian
@@ -45,8 +55,7 @@ void declareControllerParameters(franka_example_controllers::JointImpedanceExamp
 // out-of-bounds command_interfaces_ access.
 TEST(FrankaExampleControllersTest, JointImpedanceClaimsTorqueAndCartesianPoseInterfaces) {
   franka_example_controllers::JointImpedanceExampleController controller;
-  ASSERT_EQ(controller.init("joint_impedance_example_controller", "", 100),
-            controller_interface::return_type::OK);
+  ASSERT_TRUE(initController(controller, "joint_impedance_example_controller"));
   declareControllerParameters(controller);
   ASSERT_EQ(controller.configure().id(), lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE);
 
@@ -77,8 +86,7 @@ TEST(FrankaExampleControllersTest, JointImpedanceClaimsTorqueAndCartesianPoseInt
 // crash on configure() with empty state_interfaces_.
 TEST(FrankaExampleControllersTest, ConfigureSucceedsWithoutStateInterfaces) {
   franka_example_controllers::JointImpedanceExampleController controller;
-  ASSERT_EQ(controller.init("joint_impedance_example_controller", "", 100),
-            controller_interface::return_type::OK);
+  ASSERT_TRUE(initController(controller, "joint_impedance_example_controller"));
   declareControllerParameters(controller);
 
   // No interfaces assigned here: state_interfaces_ is empty at configure time.
