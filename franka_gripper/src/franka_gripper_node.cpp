@@ -35,7 +35,7 @@ void handleErrors(
 }
 
 template <typename T_action>
-rclcpp_action::Server<T_action>::SharedPtr makeActionServer(
+typename rclcpp_action::Server<T_action>::SharedPtr makeActionServer(
     rclcpp::Node::SharedPtr node,
     const std::string& name,
     std::function<bool(const typename T_action::Goal&)> handler) {
