@@ -10,22 +10,22 @@
 
 #include <franka/exception.h>
 #include <franka/robot_state.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include <std_msgs/msg/bool.hpp>
 
-#include <actionlib/server/simple_action_server.h>
 #include <franka_hw/franka_hw.h>
 #include <franka_hw/services.h>
-#include <franka_msgs/ErrorRecoveryAction.h>
-#include <ros/ros.h>
+#include <franka_msgs/action/error_recovery.hpp>
 
 namespace franka_hw {
 
 /**
- * A hardware class for a Panda robot based on the ros_control framework.
+ * A hardware class for a Panda robot based on the ros2_control framework.
  * This class is ready to be combined with other hardware classes e.g. to
  * control multiple robots from a single controller.
  * Note: This class allows for torque (effort) control only due to the lack of synchronization
- * between master controllers of different robots. For more information see the documentation at
- * https://frankaemika.github.io/docs/franka_ros.html .
+ * between master controllers of different robots.
  */
 class FrankaCombinableHW : public FrankaHW {
  public:
@@ -35,57 +35,30 @@ class FrankaCombinableHW : public FrankaHW {
   FrankaCombinableHW();
 
   /**
-   * Initializes the class in terms of ros_control interfaces.
-   * Note: You have to call initParameters beforehand. Use the complete initialization routine
-   * \ref init() method to control robots.
-   *
-   * @param[in] robot_hw_nh A node handle in the namespace of the robot hardware.
-   * @return True if successful, false otherwise.
-   */
-  void initROSInterfaces(ros::NodeHandle& robot_hw_nh) override;
-
-  /**
    * Runs the currently active controller in a realtime loop. If no controller is active, the
    * function immediately exits.
    *
    * @param[in] ros_callback A callback function that is executed at each time step.
    *
    * @throw franka::ControlException if an error related to torque control occurred.
-   * @throw franka::InvalidOperationException if a conflicting operation is already running.
-   * @throw franka::NetworkException if the connection is lost, e.g. after a timeout.
-   * @throw franka::RealtimeException if realtime priority cannot be set for the current thread.
    */
-  void control(const std::function<bool(const ros::Time&, const ros::Duration&)>&
-                   ros_callback =  // NOLINT (google-default-arguments)
-               [](const ros::Time&, const ros::Duration&) {
+  void control(const std::function<bool(const rclcpp::Time&, const rclcpp::Duration&)>&
+                   ros_callback =
+               [](const rclcpp::Time&, const rclcpp::Duration&) {
                  return true;
-               }) const override;  // NOLINT (google-default-arguments)
-
-  /**
-   * Checks whether a requested controller can be run, based on the resources and interfaces it
-   * claims. Note: FrankaCombinableHW allows torque control only.
-   *
-   * @param[in] info Controllers to be running at the same time.
-   *
-   * @return True in case of a conflict, false in case of valid controllers.
-   */
-  bool checkForConflict(const std::list<hardware_interface::ControllerInfo>& info) const override;
+               }) const override;
 
   /**
    * Reads data from the franka robot.
-   *
-   * @param[in] time The current time. Not used in this class.
-   * @param[in] period The time passed since the last call to \ref read. Not used in this class.
    */
-  void read(const ros::Time& /*time*/, const ros::Duration& /*period*/) override;
+  hardware_interface::return_type read(const rclcpp::Time& time,
+                                       const rclcpp::Duration& period) override;
 
   /**
    * Writes data to the franka robot.
-   *
-   * @param[in] time The current time. Not used in this class.
-   * @param[in] period The time passed since the last call to \ref write.
    */
-  void write(const ros::Time& /*time*/, const ros::Duration& period) override;
+  hardware_interface::return_type write(const rclcpp::Time& time,
+                                        const rclcpp::Duration& period) override;
 
   /**
    * Getter method for the arm_id which is used to distinguish between multiple
@@ -97,14 +70,14 @@ class FrankaCombinableHW : public FrankaHW {
 
   /**
    * Triggers a stop of the controlLoop. This interface is used to stop all combined
-   * robots together when at one robot encounters an error.
+   * robots together when one robot encounters an error.
    */
   void triggerError();
 
   /**
    * Getter for the error flag of the class.
    *
-   * @return True in case of an error false otherwise.
+   * @return True in case of an error, false otherwise.
    */
   bool hasError() const noexcept;
 
@@ -127,7 +100,7 @@ class FrankaCombinableHW : public FrankaHW {
                             franka::Duration time_step) {
     if (commandHasNaN(command)) {
       std::string error_message = "FrankaCombinableHW: Got NaN value in command!";
-      ROS_FATAL("%s", error_message.c_str());
+      RCLCPP_FATAL(rclcpp::get_logger("FrankaCombinableHW"), "%s", error_message.c_str());
       throw std::invalid_argument(error_message);
     }
     checkJointLimits();
@@ -146,7 +119,7 @@ class FrankaCombinableHW : public FrankaHW {
 
   void publishErrorState(bool error);
 
-  void setupServicesAndActionServers(ros::NodeHandle& node_handle);
+  void setupServicesAndActionServers(rclcpp::Node::SharedPtr node);
 
   void initRobot() override;
 
@@ -159,10 +132,9 @@ class FrankaCombinableHW : public FrankaHW {
 
   std::unique_ptr<std::thread> control_loop_thread_;
   ServiceContainer services_;
-  std::unique_ptr<actionlib::SimpleActionServer<franka_msgs::ErrorRecoveryAction>>
-      recovery_action_server_;
+  rclcpp_action::Server<franka_msgs::action::ErrorRecovery>::SharedPtr recovery_action_server_;
   std::atomic_bool has_error_{false};
-  ros::Publisher has_error_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr has_error_pub_;
   std::atomic_bool error_recovered_{false};
   std::atomic_bool controller_needs_reset_{false};
 };

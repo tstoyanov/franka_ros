@@ -7,12 +7,16 @@
 
 #include <franka/model.h>
 #include <franka/robot_state.h>
-#include <hardware_interface/internal/hardware_resource_manager.h>
 
 namespace franka_hw {
 
+constexpr char kFrankaModelInterface[] = "franka_hw/FrankaModelInterface";
+
 /**
  * Handle to perform calculations using the dynamic model of a robot.
+ *
+ * In ros2_control the model handle is kept in the hardware plugin and exposed to controllers
+ * via the `<arm_id>/franka_hw/FrankaModelInterface/robot_model` state interface.
  */
 class FrankaModelHandle {
  public:
@@ -268,12 +272,6 @@ class FrankaModelHandle {
   std::string name_;
   const franka::Model* model_;
   const franka::RobotState* robot_state_;
-};
-
-/**
- * Hardware interface to perform calculations using the dynamic model of a robot.
- */
-class FrankaModelInterface : public hardware_interface::HardwareResourceManager<FrankaModelHandle> {
 };
 
 }  // namespace franka_hw

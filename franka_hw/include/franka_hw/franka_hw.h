@@ -6,8 +6,10 @@
 #include <atomic>
 #include <exception>
 #include <functional>
-#include <list>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <vector>
 
 #include <franka/control_types.h>
 #include <franka/duration.h>
@@ -15,76 +17,82 @@
 #include <franka/rate_limiting.h>
 #include <franka/robot.h>
 #include <franka/robot_state.h>
-#include <hardware_interface/joint_command_interface.h>
-#include <hardware_interface/joint_state_interface.h>
-#include <hardware_interface/robot_hw.h>
-#include <joint_limits_interface/joint_limits_interface.h>
-#include <joint_limits_interface/joint_limits_urdf.h>
-#include <ros/time.h>
-#include <urdf/model.h>
+#include <hardware_interface/handle.hpp>
+#include <hardware_interface/hardware_info.hpp>
+#include <hardware_interface/system_interface.hpp>
+#include <hardware_interface/types/hardware_interface_return_values.hpp>
+#include <rclcpp/duration.hpp>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/macros.hpp>
+#include <rclcpp/time.hpp>
+#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
+#include <rclcpp_lifecycle/state.hpp>
 
 #include <franka_hw/control_mode.h>
 #include <franka_hw/franka_cartesian_command_interface.h>
 #include <franka_hw/franka_model_interface.h>
 #include <franka_hw/franka_state_interface.h>
-#include <franka_hw/resource_helpers.h>
+
+using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
 namespace franka_hw {
 
 /**
- * This class wraps the functionality of libfranka for controlling Panda robots into the ros_control
- * framework.
+ * This class wraps the functionality of libfranka (0.7.0) for controlling Panda robots into the
+ * ros2_control framework as a hardware_interface::SystemInterface plugin.
  */
-class FrankaHW : public hardware_interface::RobotHW {
+class FrankaHW : public hardware_interface::SystemInterface {
  public:
   /**
    * Default constructor.
-   * Note: Be sure to call the init() method before operation.
+   * Note: Be sure to call on_init() before operation.
    */
   FrankaHW();
 
   virtual ~FrankaHW() override = default;
 
   /**
-   * Initializes the FrankaHW class to be fully operational. This involves parsing required
-   * configurations from the ROS parameter server, connecting to the robot and setting up interfaces
-   * for the ros_control framework.
+   * Initializes the hardware interface from the URDF/hardware info, connects to the robot via
+   * libfranka and loads the model.
    *
-   * @param[in] root_nh A node handle in the root namespace of the control node.
-   * @param[in] robot_hw_nh A node handle in the namespace of the robot hardware.
-   *
-   * @return True if successful, false otherwise.
+   * @param[in] info The hardware info parsed from the URDF <ros2_control> tag.
+   * @return CallbackReturn::SUCCESS if successful.
    */
-  virtual bool init(ros::NodeHandle& root_nh, ros::NodeHandle& robot_hw_nh) override;
+  CallbackReturn on_init(const hardware_interface::HardwareInfo& info) override;
 
   /**
-   * Reads the parameterization of the hardware class from the ROS parameter server
-   * (e.g. arm_id, robot_ip joint_names etc.)
+   * Reads the parameterization of the hardware class from the hardware info parameters
+   * (e.g. arm_id, robot_ip, joint_names etc.)
    *
-   * @param[in] root_nh A node handle in the root namespace of the control node.
-   * @param[in] robot_hw_nh A node handle in the namespace of the robot hardware.
-   *
-   * @return True if successful, false otherwise.
+   * @param[in] info The hardware info.
+   * @return CallbackReturn::SUCCESS if successful, ERROR otherwise.
    */
-  virtual bool initParameters(ros::NodeHandle& root_nh, ros::NodeHandle& robot_hw_nh);
+  virtual CallbackReturn initParameters(const hardware_interface::HardwareInfo& info);
 
   /**
-   * Initializes the class in terms of ros_control interfaces.
-   * Note: You have to call initParameters beforehand. Use the complete initialization routine
-   * \ref init() method to control robots.
-   *
-   * @param[in] robot_hw_nh A node handle in the namespace of the robot hardware.
-   * @return True if successful, false otherwise.
+   * Exports all state interfaces (joint states, franka robot state, model).
    */
-  virtual void initROSInterfaces(ros::NodeHandle& robot_hw_nh);
+  std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
 
   /**
-   * Initializes the callbacks for on-the-fly reading the parameters for rate limiting,
-   * internal controllers and cutoff frequency.
-   *
-   * @param[in] robot_hw_nh A node handle in the namespace of the robot hardware.
+   * Exports all command interfaces (joint position/velocity/effort, cartesian pose/velocity).
    */
-  virtual void setupParameterCallbacks(ros::NodeHandle& robot_hw_nh);
+  std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
+
+  /**
+   * Determines the control mode from the interfaces to start/stop and configures the libfranka
+   * control callback accordingly.
+   */
+  hardware_interface::return_type prepare_command_mode_switch(
+      const std::vector<std::string>& start_interfaces,
+      const std::vector<std::string>& stop_interfaces) override;
+
+  /**
+   * Activates the control mode chosen in prepare_command_mode_switch (real-time capable).
+   */
+  hardware_interface::return_type perform_command_mode_switch(
+      const std::vector<std::string>& start_interfaces,
+      const std::vector<std::string>& stop_interfaces) override;
 
   /**
    * Runs the currently active controller in a realtime loop.
@@ -102,10 +110,10 @@ class FrankaHW : public hardware_interface::RobotHW {
    * @throw franka::RealtimeException if realtime priority cannot be set for the current thread.
    */
   virtual void control(
-      const std::function<bool(const ros::Time&, const ros::Duration&)>& ros_callback) const;
+      const std::function<bool(const rclcpp::Time&, const rclcpp::Duration&)>& ros_callback) const;
 
   /**
-   * Updates the controller interfaces from the given robot state.
+   * Updates the robot state published through the state interfaces.
    *
    * @param[in] robot_state Current robot state.
    */
@@ -117,36 +125,6 @@ class FrankaHW : public hardware_interface::RobotHW {
    * @return True if a controller is currently active, false otherwise.
    */
   virtual bool controllerActive() const noexcept;
-
-  /**
-   * Checks whether a requested controller can be run, based on the resources
-   * and interfaces it claims.
-   *
-   * @param[in] info Controllers to be running at the same time.
-   *
-   * @return True in case of a conflict, false in case of valid controllers.
-   */
-  virtual bool checkForConflict(
-      const std::list<hardware_interface::ControllerInfo>& info) const override;
-
-  /**
-   * Performs controller switching (real-time capable).
-   */
-  virtual void doSwitch(
-      const std::list<hardware_interface::ControllerInfo>& /*start_list*/,
-      const std::list<hardware_interface::ControllerInfo>& /*stop_list*/) override;
-
-  /**
-   * Prepares switching between controllers (not real-time capable).
-   *
-   * @param[in] start_list Controllers requested to be started.
-   * @param[in] stop_list Controllers requested to be stopped.
-   *
-   * @return True if the preparation has been successful, false otherwise.
-   */
-  virtual bool prepareSwitch(
-      const std::list<hardware_interface::ControllerInfo>& start_list,
-      const std::list<hardware_interface::ControllerInfo>& stop_list) override;
 
   /**
    * Gets the current joint position command.
@@ -170,19 +148,12 @@ class FrankaHW : public hardware_interface::RobotHW {
   virtual std::array<double, 7> getJointEffortCommand() const noexcept;
 
   /**
-   * Enforces limits on position, velocity, and torque level.
-   *
-   * @param[in] period The duration of the current cycle.
-   */
-  virtual void enforceLimits(const ros::Duration& period);
-
-  /**
    * Resets the limit interfaces.
    */
   virtual void reset();
 
   /**
-   * Checks the proximity of each joint to its joint position limits and prints
+   * Checks the proximity of each joint to its joint position limits and logs
    * a warning whenever a joint is close to a limit.
    */
   virtual void checkJointLimits();
@@ -193,7 +164,8 @@ class FrankaHW : public hardware_interface::RobotHW {
    * @param[in] time The current time.
    * @param[in] period The time passed since the last call to \ref read.
    */
-  virtual void read(const ros::Time& time, const ros::Duration& period) override;
+  hardware_interface::return_type read(const rclcpp::Time& time,
+                                       const rclcpp::Duration& period) override;
 
   /**
    * Writes data to the franka robot.
@@ -201,12 +173,28 @@ class FrankaHW : public hardware_interface::RobotHW {
    * @param[in] time The current time.
    * @param[in] period The time passed since the last call to \ref write.
    */
-  virtual void write(const ros::Time& time, const ros::Duration& period) override;
+  hardware_interface::return_type write(const rclcpp::Time& time,
+                                        const rclcpp::Duration& period) override;
 
   /**
    * Getter for the libfranka robot instance.
    */
   virtual franka::Robot& robot() const;
+
+  /**
+   * Getter for the libfranka model instance.
+   */
+  virtual franka::Model& model() const;
+
+  /**
+   * Getter for the current robot state (ROS-side copy).
+   */
+  const franka::RobotState& robotStateRos() const;
+
+  /**
+   * Getter for the arm_id which identifies this hardware instance.
+   */
+  const std::string& armId() const noexcept { return arm_id_; }
 
   /**
    * Checks a command for NaN values.
@@ -286,132 +274,22 @@ class FrankaHW : public hardware_interface::RobotHW {
                     const franka::RobotState& robot_state,
                     franka::Duration time_step) {
     robot_state_libfranka_ = robot_state;
-    ros::Time now = ros::Time(0);
-    read(now, ros::Duration(time_step.toSec()));
+    rclcpp::Time now = rclcpp::Clock(RCL_SYSTEM_TIME).now();
+    read(now, rclcpp::Duration::from_seconds(time_step.toSec()));
 
     if (!controller_active_ || (ros_callback && !ros_callback(robot_state, time_step))) {
       return franka::MotionFinished(command);
     }
 
-    write(now, ros::Duration(time_step.toSec()));
+    write(now, rclcpp::Duration::from_seconds(time_step.toSec()));
     if (commandHasNaN(command)) {
       std::string error_message = "FrankaHW::controlCallback: Got NaN command!";
-      ROS_FATAL("%s", error_message.c_str());
+      RCLCPP_FATAL(rclcpp::get_logger("FrankaHW"), "%s", error_message.c_str());
       throw std::invalid_argument(error_message);
     }
 
     return command;
   }
-
-  /**
-   * Configures a limit interface to enforce limits on effort, velocity or position level
-   * on joint commands.
-   *
-   * @param[out] limit_interface The limit interface to set up.
-   * @param[out] command_interface The command interface to hook the limit interface to.
-   */
-  template <typename T>
-  void setupLimitInterface(joint_limits_interface::JointLimitsInterface<T>& limit_interface,
-                           hardware_interface::JointCommandInterface& command_interface) {
-    joint_limits_interface::SoftJointLimits soft_limits;
-    joint_limits_interface::JointLimits joint_limits;
-    for (size_t i = 0; i < joint_names_.size(); i++) {
-      const std::string& joint_name = joint_names_[i];
-      auto urdf_joint = urdf_model_.getJoint(joint_name);
-      if (!urdf_joint || !urdf_joint->safety || !urdf_joint->limits) {
-        ROS_WARN(
-            "FrankaHW: Joint %s has incomplete limits and safety specs. Skipping it in the joint "
-            "limit interface!",
-            joint_name.c_str());
-        continue;
-      }
-      if (joint_limits_interface::getSoftJointLimits(urdf_joint, soft_limits)) {
-        if (joint_limits_interface::getJointLimits(urdf_joint, joint_limits)) {
-          joint_limits.max_acceleration = franka::kMaxJointAcceleration[i];
-          joint_limits.has_acceleration_limits = true;
-          joint_limits.max_jerk = franka::kMaxJointJerk[i];
-          joint_limits.has_jerk_limits = true;
-          T limit_handle(command_interface.getHandle(joint_name), joint_limits, soft_limits);
-          limit_interface.registerHandle(limit_handle);
-        } else {
-          ROS_ERROR(
-              "FrankaHW: Could not parse joint limit for joint: %s for joint limit interfaces",
-              joint_name.c_str());
-        }
-      } else {
-        ROS_ERROR(
-            "FrankaHW: Could not parse soft joint limit for joint %s for joint limit interfaces",
-            joint_name.c_str());
-      }
-    }
-  }
-
-  /**
-   * Configures and registers the joint state interface in ros_control.
-   *
-   * @param[in] robot_state The data field holding the updated robot state.
-   */
-  virtual void setupJointStateInterface(franka::RobotState& robot_state);
-
-  /**
-   * Configures and registers a joint command interface for positions velocities or efforts in
-   * ros_control.
-   *
-   * @param[in] command The data field holding the command to execute.
-   * @param[in] state The data field holding the updated robot state.
-   * @param[in] use_q_d Flag to configure using desired values as joint_states.
-   * @param[out] interface The command interface to configure.
-   */
-  template <typename T>
-  void setupJointCommandInterface(std::array<double, 7>& command,
-                                  franka::RobotState& state,
-                                  bool use_q_d,
-                                  T& interface) {
-    for (size_t i = 0; i < joint_names_.size(); i++) {
-      hardware_interface::JointStateHandle state_handle;
-      if (use_q_d) {
-        state_handle = hardware_interface::JointStateHandle(joint_names_[i], &state.q_d[i],
-                                                            &state.dq_d[i], &state.tau_J[i]);
-      } else {
-        state_handle = hardware_interface::JointStateHandle(joint_names_[i], &state.q[i],
-                                                            &state.dq[i], &state.tau_J[i]);
-      }
-      hardware_interface::JointHandle joint_handle(state_handle, &command[i]);
-      interface.registerHandle(joint_handle);
-    }
-    registerInterface(&interface);
-  }
-
-  /**
-   * Configures and registers the state interface offering the full franka::RobotState in
-   * ros_control.
-   *
-   * @param[in] robot_state The data field holding the updated robot state.
-   */
-  virtual void setupFrankaStateInterface(franka::RobotState& robot_state);
-
-  /**
-   * Configures and registers the command interface for Cartesian poses in ros_control.
-   *
-   * @param[in] pose_cartesian_command The data field holding the command to execute.
-   */
-  virtual void setupFrankaCartesianPoseInterface(franka::CartesianPose& pose_cartesian_command);
-
-  /**
-   * Configures and registers the command interface for Cartesian velocities in ros_control.
-   *
-   * @param[in] velocity_cartesian_command The data field holding the command to execute.
-   */
-  virtual void setupFrankaCartesianVelocityInterface(
-      franka::CartesianVelocities& velocity_cartesian_command);
-
-  /**
-   * Configures and registers the model interface offering kinematics and dynamics in ros_control.
-   *
-   * @param[in] robot_state A reference to the data field storing the current robot state. This
-   * state is used to evaluate model qunatities (by default) at the current state.
-   */
-  virtual void setupFrankaModelInterface(franka::RobotState& robot_state);
 
   /**
    * Configures the run function which is used as libfranka control callback based on the requested
@@ -430,25 +308,32 @@ class FrankaHW : public hardware_interface::RobotHW {
                               bool limit_rate,
                               double cutoff_frequency,
                               franka::ControllerMode internal_controller);
+
   /**
    * Uses the robot_ip_ to connect to the robot via libfranka and loads the libfranka model.
    */
   virtual void initRobot();
 
   /**
-   * Parses a set of collision thresholds from the parameter server. The methods returns
+   * Parses a set of collision thresholds from the hardware info parameters. The method returns
    * the default values if no parameter was found or the size of the array did not match
    * the defaults dimension.
    *
    * @param[in] name The name of the parameter to look for.
-   * @param[in] robot_hw_nh A node handle in the namespace of the robot hardware.
+   * @param[in] info The hardware info holding the parameters.
    * @param[in] defaults A set of default values that also specify the size the parameter must have
    * to be valid.
    * @return A set parsed parameters if valid parameters where found, the default values otherwise.
    */
   static std::vector<double> getCollisionThresholds(const std::string& name,
-                                                    ros::NodeHandle& robot_hw_nh,
+                                                    const hardware_interface::HardwareInfo& info,
                                                     const std::vector<double>& defaults);
+
+  /**
+   * Derives the ControlMode bitmask from the claimed interface names.
+   */
+  ControlMode controlModeFromInterfaces(const std::vector<std::string>& start_interfaces,
+                                        const std::vector<std::string>& stop_interfaces) const;
 
   struct CollisionConfig {
     std::array<double, 7> lower_torque_thresholds_acceleration;
@@ -462,17 +347,6 @@ class FrankaHW : public hardware_interface::RobotHW {
   };
 
   CollisionConfig collision_config_;
-  hardware_interface::JointStateInterface joint_state_interface_{};
-  FrankaStateInterface franka_state_interface_{};
-  hardware_interface::PositionJointInterface position_joint_interface_{};
-  hardware_interface::VelocityJointInterface velocity_joint_interface_{};
-  hardware_interface::EffortJointInterface effort_joint_interface_{};
-  FrankaPoseCartesianInterface franka_pose_cartesian_interface_{};
-  FrankaVelocityCartesianInterface franka_velocity_cartesian_interface_{};
-  FrankaModelInterface franka_model_interface_{};
-  joint_limits_interface::PositionJointSoftLimitsInterface position_joint_limit_interface_{};
-  joint_limits_interface::VelocityJointSoftLimitsInterface velocity_joint_limit_interface_{};
-  joint_limits_interface::EffortJointSoftLimitsInterface effort_joint_limit_interface_{};
 
   std::mutex libfranka_state_mutex_;
   std::mutex ros_state_mutex_;
@@ -499,7 +373,6 @@ class FrankaHW : public hardware_interface::RobotHW {
   std::array<std::string, 7> joint_names_;
   std::string arm_id_;
   std::string robot_ip_;
-  urdf::Model urdf_model_;
   double joint_limit_warning_threshold_{0.1};
   franka::RealtimeConfig realtime_config_;
 
@@ -507,10 +380,13 @@ class FrankaHW : public hardware_interface::RobotHW {
   std::atomic_bool controller_active_{false};
   ControlMode current_control_mode_ = ControlMode::None;
 
-  std::function<franka::ControllerMode()> get_internal_controller_;
-  std::function<bool()> get_limit_rate_;
-  std::function<double()> get_cutoff_frequency_;
+  bool rate_limiting_{true};
+  double cutoff_frequency_{1000.0};
+  franka::ControllerMode internal_controller_{franka::ControllerMode::kJointImpedance};
+
   std::function<void(franka::Robot&, Callback)> run_function_;
+
+  rclcpp::Logger logger_{rclcpp::get_logger("FrankaHW")};
 };
 
 }  // namespace franka_hw

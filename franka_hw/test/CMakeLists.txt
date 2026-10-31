@@ -1,24 +1,19 @@
-find_package(rostest REQUIRED)
+find_package(ament_cmake_gtest REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(rclcpp REQUIRED)
 
-add_rostest_gtest(franka_hw_test
-  launch/franka_hw_test.test
+ament_add_gtest(franka_hw_test
   main.cpp
-  franka_hw_controller_switching_test.cpp
   franka_hw_interfaces_test.cpp
+  franka_hw_controller_switching_test.cpp
   franka_combinable_hw_controller_switching_test.cpp
 )
-
-add_dependencies(franka_hw_test
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-  ${catkin_EXPORTED_TARGETS}
-)
-
-target_link_libraries(franka_hw_test
-  ${catkin_LIBRARIES}
-  Franka::Franka
-  franka_hw
-)
-
+target_link_libraries(franka_hw_test franka_hw Franka::Franka)
 target_include_directories(franka_hw_test PUBLIC
-  ${catkin_INCLUDE_DIRS}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+ament_target_dependencies(franka_hw_test
+  hardware_interface
+  rclcpp
+  franka_msgs
 )
