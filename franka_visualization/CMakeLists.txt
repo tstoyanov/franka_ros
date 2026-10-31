@@ -10,11 +10,11 @@ find_package(sensor_msgs REQUIRED)
 find_package(Franka 0.7.0 REQUIRED)
 
 add_executable(gripper_joint_state_publisher src/gripper_joint_state_publisher.cpp)
-target_link_libraries(gripper_joint_state_publisher PUBLIC Franka::Franka)
+target_link_libraries(gripper_joint_state_publisher Franka::Franka)
 ament_target_dependencies(gripper_joint_state_publisher rclcpp sensor_msgs)
 
 add_executable(robot_joint_state_publisher src/robot_joint_state_publisher.cpp)
-target_link_libraries(robot_joint_state_publisher PUBLIC Franka::Franka)
+target_link_libraries(robot_joint_state_publisher Franka::Franka)
 ament_target_dependencies(robot_joint_state_publisher rclcpp sensor_msgs)
 
 install(TARGETS gripper_joint_state_publisher robot_joint_state_publisher

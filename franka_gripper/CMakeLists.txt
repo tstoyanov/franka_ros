@@ -23,9 +23,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 
 add_library(franka_gripper SHARED src/franka_gripper.cpp)
-target_link_libraries(franka_gripper PUBLIC Franka::Franka)
+target_link_libraries(franka_gripper Franka::Franka)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(franka_gripper PUBLIC ${cpp_typesupport_target})
+target_link_libraries(franka_gripper ${cpp_typesupport_target})
 target_include_directories(franka_gripper PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -33,7 +33,7 @@ target_include_directories(franka_gripper PUBLIC
 ament_target_dependencies(franka_gripper rclcpp rclcpp_action control_msgs)
 
 add_executable(franka_gripper_node src/franka_gripper_node.cpp)
-target_link_libraries(franka_gripper_node PRIVATE franka_gripper ${cpp_typesupport_target})
+target_link_libraries(franka_gripper_node franka_gripper ${cpp_typesupport_target})
 ament_target_dependencies(franka_gripper_node rclcpp rclcpp_action sensor_msgs control_msgs)
 
 install(TARGETS franka_gripper franka_gripper_node

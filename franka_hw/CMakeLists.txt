@@ -20,7 +20,7 @@ add_library(franka_hw SHARED
   src/franka_combinable_hw.cpp
   src/trigger_rate.cpp
 )
-target_link_libraries(franka_hw PUBLIC Franka::Franka)
+target_link_libraries(franka_hw Franka::Franka)
 target_include_directories(franka_hw PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -38,7 +38,7 @@ ament_target_dependencies(franka_hw
 add_library(franka_control_services SHARED
   src/services.cpp
 )
-target_link_libraries(franka_control_services PUBLIC Franka::Franka)
+target_link_libraries(franka_control_services Franka::Franka)
 target_include_directories(franka_control_services PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
