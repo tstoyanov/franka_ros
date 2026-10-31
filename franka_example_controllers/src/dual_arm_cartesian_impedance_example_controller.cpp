@@ -350,15 +350,15 @@ void DualArmCartesianImpedanceExampleController::targetPoseCallback(
 }
 
 void DualArmCartesianImpedanceExampleController::publishCenteringPose() {
-  if (center_frame_pub_.trylock()) {
+  if (center_frame_pub_->trylock()) {
     const auto& robot_state_left = *arms_data_.at(left_arm_id_).robot_state_;
     Eigen::Affine3d Ol_T_EEl(Eigen::Matrix4d::Map(  // NOLINT (readability-identifier-naming)
         robot_state_left.O_T_EE.data()));           // NOLINT (readability-identifier-naming)
     Eigen::Affine3d Ol_T_C = Ol_T_EEl * EEl_T_C_;   // NOLINT (readability-identifier-naming)
-    center_frame_pub_.msg_.pose = tf2::toMsg(Ol_T_C);
-    center_frame_pub_.msg_.header.frame_id = left_arm_id_ + "_link0";
-    center_frame_pub_.msg_.header.stamp = get_node()->now();
-    center_frame_pub_.unlockAndPublish();
+    center_frame_pub_->msg_.pose = tf2::toMsg(Ol_T_C);
+    center_frame_pub_->msg_.header.frame_id = left_arm_id_ + "_link0";
+    center_frame_pub_->msg_.header.stamp = get_node()->now();
+    center_frame_pub_->unlockAndPublish();
   }
 }
 
