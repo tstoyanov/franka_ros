@@ -1,22 +1,21 @@
 // Copyright (c) 2019 Franka Emika GmbH
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
 #pragma once
-#include <memory>
-#include <string>
 #include <vector>
 
 #include <franka/exception.h>
 #include <franka/robot.h>
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp/service.hpp>
+#include <ros/console.h>
+#include <ros/node_handle.h>
+#include <ros/service_server.h>
 
-#include <franka_msgs/srv/set_cartesian_impedance.hpp>
-#include <franka_msgs/srv/set_ee_frame.hpp>
-#include <franka_msgs/srv/set_force_torque_collision_behavior.hpp>
-#include <franka_msgs/srv/set_full_collision_behavior.hpp>
-#include <franka_msgs/srv/set_joint_impedance.hpp>
-#include <franka_msgs/srv/set_k_frame.hpp>
-#include <franka_msgs/srv/set_load.hpp>
+#include <franka_msgs/SetCartesianImpedance.h>
+#include <franka_msgs/SetEEFrame.h>
+#include <franka_msgs/SetForceTorqueCollisionBehavior.h>
+#include <franka_msgs/SetFullCollisionBehavior.h>
+#include <franka_msgs/SetJointImpedance.h>
+#include <franka_msgs/SetKFrame.h>
+#include <franka_msgs/SetLoad.h>
 
 namespace franka_hw {
 
@@ -24,30 +23,28 @@ namespace franka_hw {
  * Advertises a service that acts according to the handler function which is used in the service
  * callback.
  *
- * @param[in] node The node in whose namespace to advertise the service.
+ * @param[in] node_handle The NodeHandle in the namespace at which to advertise the service.
  * @param[in] name The name of the service.
  * @param[in] handler The callback method for the service.
  * @return The service server.
  */
 template <typename T>
-typename rclcpp::Service<T>::SharedPtr advertiseService(
-    rclcpp::Node::SharedPtr node,
+ros::ServiceServer advertiseService(
+    ros::NodeHandle& node_handle,
     const std::string& name,
-    std::function<void(std::shared_ptr<typename T::Request>, std::shared_ptr<typename T::Response>)>
-        handler) {
-  return node->create_service<T>(
-      name,
-      [node, name, handler](std::shared_ptr<typename T::Request> request,
-                      std::shared_ptr<typename T::Response> response) {
+    std::function<void(typename T::Request&, typename T::Response&)> handler) {
+  return node_handle.advertiseService<typename T::Request, typename T::Response>(
+      name, [name, handler](typename T::Request& request, typename T::Response& response) {
         try {
           handler(request, response);
-          response->success = true;
-          RCLCPP_DEBUG(node->get_logger(), "%s succeeded.", name.c_str());
+          response.success = true;
+          ROS_DEBUG_STREAM(name << " succeeded.");
         } catch (const franka::Exception& ex) {
-          RCLCPP_ERROR(node->get_logger(), "%s failed: %s", name.c_str(), ex.what());
-          response->success = false;
-          response->error = ex.what();
+          ROS_ERROR_STREAM(name << " failed: " << ex.what());
+          response.success = false;
+          response.error = ex.what();
         }
+        return true;
       });
 }
 
@@ -64,72 +61,100 @@ class ServiceContainer {
    */
   template <typename T, typename... TArgs>
   ServiceContainer& advertiseService(TArgs&&... args) {
-    services_.push_back(franka_hw::advertiseService<T>(std::forward<TArgs>(args)...));
+    ros::ServiceServer server = franka_hw::advertiseService<T>(std::forward<TArgs>(args)...);
+    services_.push_back(server);
     return *this;
   }
 
  private:
-  std::vector<std::shared_ptr<rclcpp::ServiceBase>> services_;
+  std::vector<ros::ServiceServer> services_;
 };
 
 /**
  * Sets up all services relevant for a libfranka robot inside a service container.
  *
  * @param[in] robot The libfranka robot for which to set up services interfaces.
- * @param[in] node The node in whose namespace to advertise the services.
+ * @param[in] node_handle The NodeHandle in the namespace at which to advertise the services.
  * @param[in] services The container to store the service servers.
  */
-void setupServices(franka::Robot& robot, rclcpp::Node::SharedPtr node, ServiceContainer& services);
+void setupServices(franka::Robot& robot, ros::NodeHandle& node_handle, ServiceContainer& services);
 
 /**
  * Callback for the service interface to franka::robot::setCartesianImpedance.
+ *
+ * @param[in] robot The libfranka robot for which to set up the service.
+ * @param[in] req The service request.
+ * @param[out] res The service response.
  */
 void setCartesianImpedance(franka::Robot& robot,
-                           const franka_msgs::srv::SetCartesianImpedance::Request::SharedPtr req,
-                           franka_msgs::srv::SetCartesianImpedance::Response::SharedPtr res);
+                           const franka_msgs::SetCartesianImpedance::Request& req,
+                           franka_msgs::SetCartesianImpedance::Response& res);
 
 /**
  * Callback for the service interface to franka::robot::setJointImpedance.
+ *
+ * @param[in] robot The libfranka robot for which to set up the service.
+ * @param[in] req The service request.
+ * @param[out] res The service response.
  */
 void setJointImpedance(franka::Robot& robot,
-                       const franka_msgs::srv::SetJointImpedance::Request::SharedPtr req,
-                       franka_msgs::srv::SetJointImpedance::Response::SharedPtr res);
+                       const franka_msgs::SetJointImpedance::Request& req,
+                       franka_msgs::SetJointImpedance::Response& res);
 
 /**
  * Callback for the service interface to franka::robot::setEEFrame.
+ *
+ * @param[in] robot The libfranka robot for which to set up the service.
+ * @param[in] req The service request.
+ * @param[out] res The service response.
  */
 void setEEFrame(franka::Robot& robot,
-                const franka_msgs::srv::SetEEFrame::Request::SharedPtr req,
-                franka_msgs::srv::SetEEFrame::Response::SharedPtr res);
+                const franka_msgs::SetEEFrame::Request& req,
+                franka_msgs::SetEEFrame::Response& res);
 
 /**
  * Callback for the service interface to franka::robot::setKFrame.
+ *
+ * @param[in] robot The libfranka robot for which to set up the service.
+ * @param[in] req The service request.
+ * @param[out] res The service response.
  */
 void setKFrame(franka::Robot& robot,
-               const franka_msgs::srv::SetKFrame::Request::SharedPtr req,
-               franka_msgs::srv::SetKFrame::Response::SharedPtr res);
+               const franka_msgs::SetKFrame::Request& req,
+               franka_msgs::SetKFrame::Response& res);
 
 /**
  * Callback for the service interface to franka::robot::setForceTorqueCollisionBehavior.
+ *
+ * @param[in] robot The libfranka robot for which to set up the service.
+ * @param[in] req The service request.
+ * @param[out] res The service response.
  */
 void setForceTorqueCollisionBehavior(
     franka::Robot& robot,
-    const franka_msgs::srv::SetForceTorqueCollisionBehavior::Request::SharedPtr req,
-    franka_msgs::srv::SetForceTorqueCollisionBehavior::Response::SharedPtr res);
+    const franka_msgs::SetForceTorqueCollisionBehavior::Request& req,
+    franka_msgs::SetForceTorqueCollisionBehavior::Response& res);
 
 /**
  * Callback for the service interface to franka::robot::setFullCollisionBehavior.
+ *
+ * @param[in] robot The libfranka robot for which to set up the service.
+ * @param[in] req The service request.
+ * @param[out] res The service response.
  */
-void setFullCollisionBehavior(
-    franka::Robot& robot,
-    const franka_msgs::srv::SetFullCollisionBehavior::Request::SharedPtr req,
-    franka_msgs::srv::SetFullCollisionBehavior::Response::SharedPtr res);
+void setFullCollisionBehavior(franka::Robot& robot,
+                              const franka_msgs::SetFullCollisionBehavior::Request& req,
+                              franka_msgs::SetFullCollisionBehavior::Response& res);
 
 /**
  * Callback for the service interface to franka::robot::setLoad.
+ *
+ * @param[in] robot The libfranka robot for which to set up the service.
+ * @param[in] req The service request.
+ * @param[out] res The service response.
  */
 void setLoad(franka::Robot& robot,
-             const franka_msgs::srv::SetLoad::Request::SharedPtr req,
-             franka_msgs::srv::SetLoad::Response::SharedPtr res);
+             const franka_msgs::SetLoad::Request& req,
+             franka_msgs::SetLoad::Response& res);
 
 }  // namespace franka_hw

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package format="3">
+<package format="2">
   <name>franka_gripper</name>
   <version>0.7.0</version>
   <description>This package implements the franka gripper of type Franka Hand for the use in ros</description>
@@ -11,21 +11,18 @@
   <url type="bugtracker">https://github.com/frankaemika/franka_ros/issues</url>
   <author>Franka Emika GmbH</author>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+  <buildtool_depend>catkin</buildtool_depend>
 
-  <depend>rclcpp</depend>
-  <depend>rclcpp_action</depend>
+  <depend>roscpp</depend>
+  <depend>message_generation</depend>
   <depend>libfranka</depend>
   <depend>control_msgs</depend>
+  <depend>actionlib</depend>
   <depend>sensor_msgs</depend>
+  <depend>xmlrpcpp</depend>
   <depend>actionlib_msgs</depend>
 
-  <exec_depend>rosidl_default_runtime</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
 
-  <member_of_group>rosidl_interface_packages</member_of_group>
-
-  <export>
-    <build_type>ament_cmake</build_type>
-  </export>
+  <build_export_depend>message_runtime</build_export_depend>
 </package>

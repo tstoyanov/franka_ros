@@ -1,12 +1,7 @@
-<library path="franka_hw">
-  <class name="franka_hw/FrankaCombinableHW" type="franka_hw::FrankaCombinableHW" base_class_type="hardware_interface::SystemInterface">
+<library path="lib/libfranka_hw">
+  <class name="franka_hw/FrankaCombinableHW" type="franka_hw::FrankaCombinableHW" base_class_type="hardware_interface::RobotHW">
     <description>
       A robot hardware interface class for franka robots that is combinable with other FrankaCombinableHW.
-    </description>
-  </class>
-  <class name="franka_hw/FrankaHW" type="franka_hw::FrankaHW" base_class_type="hardware_interface::SystemInterface">
-    <description>
-      A robot hardware interface class for a single franka robot.
     </description>
   </class>
 </library>

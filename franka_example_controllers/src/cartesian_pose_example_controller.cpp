@@ -3,72 +3,91 @@
 #include <franka_example_controllers/cartesian_pose_example_controller.h>
 
 #include <cmath>
+#include <memory>
+#include <stdexcept>
 #include <string>
 
-#include <pluginlib/class_list_macros.hpp>
-#include <rclcpp/rclcpp.hpp>
-
-#include <franka_example_controllers/example_controllers_common.h>
+#include <controller_interface/controller_base.h>
+#include <franka_hw/franka_cartesian_command_interface.h>
+#include <hardware_interface/hardware_interface.h>
+#include <pluginlib/class_list_macros.h>
+#include <ros/ros.h>
 
 namespace franka_example_controllers {
 
-CallbackReturn CartesianPoseExampleController::on_init() {
-  auto_declare("arm_id", std::string());
-  return CallbackReturn::SUCCESS;
-}
-
-controller_interface::InterfaceConfiguration
-CartesianPoseExampleController::command_interface_configuration() const {
-  return {controller_interface::interface_configuration_type::INDIVIDUAL,
-          cartesianPoseCommandInterfaces(arm_id_)};
-}
-
-controller_interface::InterfaceConfiguration
-CartesianPoseExampleController::state_interface_configuration() const {
-  return {controller_interface::interface_configuration_type::INDIVIDUAL,
-          {frankaStateInterface(arm_id_)}};
-}
-
-CallbackReturn CartesianPoseExampleController::on_configure(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
-  arm_id_ = get_node()->get_parameter("arm_id").as_string();
-  return CallbackReturn::SUCCESS;
-}
-
-CallbackReturn CartesianPoseExampleController::on_activate(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
-  // The state interfaces are only loaned to the controller at activation time.
-  const auto& state = robotStateFromInterface(state_interfaces_[0]);
-  std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
-  for (size_t i = 0; i < q_start.size(); i++) {
-    if (std::abs(state.q_d[i] - q_start[i]) > 0.1) {
-      RCLCPP_ERROR(get_node()->get_logger(),
-                   "CartesianPoseExampleController: Robot is not in the expected starting position "
-                   "for running this example. Run move_to_start.launch.py first.");
-      return CallbackReturn::ERROR;
-    }
+bool CartesianPoseExampleController::init(hardware_interface::RobotHW* robot_hardware,
+                                          ros::NodeHandle& node_handle) {
+  cartesian_pose_interface_ = robot_hardware->get<franka_hw::FrankaPoseCartesianInterface>();
+  if (cartesian_pose_interface_ == nullptr) {
+    ROS_ERROR(
+        "CartesianPoseExampleController: Could not get Cartesian Pose "
+        "interface from hardware");
+    return false;
   }
-  initial_pose_ = state.O_T_EE_d;
-  elapsed_time_ = rclcpp::Duration(0, 0);
-  return CallbackReturn::SUCCESS;
+
+  std::string arm_id;
+  if (!node_handle.getParam("arm_id", arm_id)) {
+    ROS_ERROR("CartesianPoseExampleController: Could not get parameter arm_id");
+    return false;
+  }
+
+  try {
+    cartesian_pose_handle_ = std::make_unique<franka_hw::FrankaCartesianPoseHandle>(
+        cartesian_pose_interface_->getHandle(arm_id + "_robot"));
+  } catch (const hardware_interface::HardwareInterfaceException& e) {
+    ROS_ERROR_STREAM(
+        "CartesianPoseExampleController: Exception getting Cartesian handle: " << e.what());
+    return false;
+  }
+
+  auto state_interface = robot_hardware->get<franka_hw::FrankaStateInterface>();
+  if (state_interface == nullptr) {
+    ROS_ERROR("CartesianPoseExampleController: Could not get state interface from hardware");
+    return false;
+  }
+
+  try {
+    auto state_handle = state_interface->getHandle(arm_id + "_robot");
+
+    std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
+    for (size_t i = 0; i < q_start.size(); i++) {
+      if (std::abs(state_handle.getRobotState().q_d[i] - q_start[i]) > 0.1) {
+        ROS_ERROR_STREAM(
+            "CartesianPoseExampleController: Robot is not in the expected starting position for "
+            "running this example. Run `roslaunch franka_example_controllers move_to_start.launch "
+            "robot_ip:=<robot-ip> load_gripper:=<has-attached-gripper>` first.");
+        return false;
+      }
+    }
+  } catch (const hardware_interface::HardwareInterfaceException& e) {
+    ROS_ERROR_STREAM(
+        "CartesianPoseExampleController: Exception getting state handle: " << e.what());
+    return false;
+  }
+
+  return true;
 }
 
-controller_interface::return_type CartesianPoseExampleController::update(
-    const rclcpp::Time& /*time*/, const rclcpp::Duration& period) {
-  elapsed_time_ = elapsed_time_ + period;
+void CartesianPoseExampleController::starting(const ros::Time& /* time */) {
+  initial_pose_ = cartesian_pose_handle_->getRobotState().O_T_EE_d;
+  elapsed_time_ = ros::Duration(0.0);
+}
+
+void CartesianPoseExampleController::update(const ros::Time& /* time */,
+                                            const ros::Duration& period) {
+  elapsed_time_ += period;
 
   double radius = 0.3;
-  double angle = M_PI / 4 * (1 - std::cos(M_PI / 5.0 * elapsed_time_.seconds()));
+  double angle = M_PI / 4 * (1 - std::cos(M_PI / 5.0 * elapsed_time_.toSec()));
   double delta_x = radius * std::sin(angle);
   double delta_z = radius * (std::cos(angle) - 1);
   std::array<double, 16> new_pose = initial_pose_;
   new_pose[12] -= delta_x;
   new_pose[14] -= delta_z;
-  setCartesianPoseCommand(command_interfaces_, new_pose);
-  return controller_interface::return_type::OK;
+  cartesian_pose_handle_->setCommand(new_pose);
 }
 
 }  // namespace franka_example_controllers
 
 PLUGINLIB_EXPORT_CLASS(franka_example_controllers::CartesianPoseExampleController,
-                       controller_interface::ControllerInterface)
+                       controller_interface::ControllerBase)

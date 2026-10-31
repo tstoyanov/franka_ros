@@ -3,70 +3,84 @@
 #include <franka_example_controllers/elbow_example_controller.h>
 
 #include <cmath>
+#include <memory>
+#include <stdexcept>
 #include <string>
 
-#include <pluginlib/class_list_macros.hpp>
-#include <rclcpp/rclcpp.hpp>
-
-#include <franka_example_controllers/example_controllers_common.h>
+#include <controller_interface/controller_base.h>
+#include <franka_hw/franka_cartesian_command_interface.h>
+#include <hardware_interface/hardware_interface.h>
+#include <pluginlib/class_list_macros.h>
+#include <ros/ros.h>
 
 namespace franka_example_controllers {
 
-CallbackReturn ElbowExampleController::on_init() {
-  auto_declare("arm_id", std::string());
-  return CallbackReturn::SUCCESS;
-}
-
-controller_interface::InterfaceConfiguration ElbowExampleController::command_interface_configuration()
-    const {
-  return {controller_interface::interface_configuration_type::INDIVIDUAL,
-          cartesianPoseCommandInterfaces(arm_id_)};
-}
-
-controller_interface::InterfaceConfiguration ElbowExampleController::state_interface_configuration()
-    const {
-  return {controller_interface::interface_configuration_type::INDIVIDUAL,
-          {frankaStateInterface(arm_id_)}};
-}
-
-CallbackReturn ElbowExampleController::on_configure(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
-  arm_id_ = get_node()->get_parameter("arm_id").as_string();
-  return CallbackReturn::SUCCESS;
-}
-
-CallbackReturn ElbowExampleController::on_activate(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
-  // The state interfaces are only loaned to the controller at activation time.
-  const auto& state = robotStateFromInterface(state_interfaces_[0]);
-  std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
-  for (size_t i = 0; i < q_start.size(); i++) {
-    if (std::abs(state.q_d[i] - q_start[i]) > 0.1) {
-      RCLCPP_ERROR(get_node()->get_logger(),
-                   "ElbowExampleController: Robot is not in the expected starting position for "
-                   "running this example. Run move_to_start.launch.py first.");
-      return CallbackReturn::ERROR;
-    }
+bool ElbowExampleController::init(hardware_interface::RobotHW* robot_hardware,
+                                  ros::NodeHandle& node_handle) {
+  cartesian_pose_interface_ = robot_hardware->get<franka_hw::FrankaPoseCartesianInterface>();
+  if (cartesian_pose_interface_ == nullptr) {
+    ROS_ERROR("ElbowExampleController: Could not get Cartesian Pose interface from hardware");
+    return false;
   }
-  initial_pose_ = state.O_T_EE_d;
-  initial_elbow_ = state.elbow_d;
-  elapsed_time_ = rclcpp::Duration(0, 0);
-  return CallbackReturn::SUCCESS;
+
+  std::string arm_id;
+  if (!node_handle.getParam("arm_id", arm_id)) {
+    ROS_ERROR("ElbowExampleController: Could not get parameter arm_id");
+    return false;
+  }
+
+  try {
+    cartesian_pose_handle_ = std::make_unique<franka_hw::FrankaCartesianPoseHandle>(
+        cartesian_pose_interface_->getHandle(arm_id + "_robot"));
+  } catch (const hardware_interface::HardwareInterfaceException& e) {
+    ROS_ERROR_STREAM("ElbowExampleController: Exception getting Cartesian handle: " << e.what());
+    return false;
+  }
+
+  auto state_interface = robot_hardware->get<franka_hw::FrankaStateInterface>();
+  if (state_interface == nullptr) {
+    ROS_ERROR("ElbowExampleController: Could not get state interface from hardware");
+    return false;
+  }
+
+  try {
+    auto state_handle = state_interface->getHandle(arm_id + "_robot");
+
+    std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
+    for (size_t i = 0; i < q_start.size(); i++) {
+      if (std::abs(state_handle.getRobotState().q_d[i] - q_start[i]) > 0.1) {
+        ROS_ERROR_STREAM(
+            "ElbowExampleController: Robot is not in the expected starting position for "
+            "running this example. Run `roslaunch franka_example_controllers move_to_start.launch "
+            "robot_ip:=<robot-ip> load_gripper:=<has-attached-gripper>` first.");
+        return false;
+      }
+    }
+  } catch (const hardware_interface::HardwareInterfaceException& e) {
+    ROS_ERROR_STREAM("ElbowExampleController: Exception getting state handle: " << e.what());
+    return false;
+  }
+
+  return true;
 }
 
-controller_interface::return_type ElbowExampleController::update(
-    const rclcpp::Time& /*time*/, const rclcpp::Duration& period) {
-  elapsed_time_ = elapsed_time_ + period;
+void ElbowExampleController::starting(const ros::Time& /* time */) {
+  initial_pose_ = cartesian_pose_handle_->getRobotState().O_T_EE_d;
+  initial_elbow_ = cartesian_pose_handle_->getRobotState().elbow_d;
+  elapsed_time_ = ros::Duration(0.0);
+}
 
-  double angle = M_PI / 10.0 * (1.0 - std::cos(M_PI / 5.0 * elapsed_time_.seconds()));
+void ElbowExampleController::update(const ros::Time& /* time */, const ros::Duration& period) {
+  elapsed_time_ += period;
+
+  double angle = M_PI / 10.0 * (1.0 - std::cos(M_PI / 5.0 * elapsed_time_.toSec()));
   auto elbow = initial_elbow_;
   elbow[0] += angle;
 
-  setCartesianPoseCommand(command_interfaces_, initial_pose_, elbow);
-  return controller_interface::return_type::OK;
+  cartesian_pose_handle_->setCommand(initial_pose_, elbow);
 }
 
 }  // namespace franka_example_controllers
 
 PLUGINLIB_EXPORT_CLASS(franka_example_controllers::ElbowExampleController,
-                       controller_interface::ControllerInterface)
+                       controller_interface::ControllerBase)

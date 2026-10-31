@@ -1,67 +1,136 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.4)
 project(franka_control)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(ament_cmake REQUIRED)
-find_package(controller_interface REQUIRED)
-find_package(controller_manager REQUIRED)
-find_package(franka_hw REQUIRED)
-find_package(franka_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(pluginlib REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(rclcpp_action REQUIRED)
-find_package(rclcpp_lifecycle REQUIRED)
-find_package(realtime_tools REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(tf2 REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
-find_package(tf2_msgs REQUIRED)
-find_package(Franka 0.7.0 REQUIRED)
-
-add_library(franka_state_controller SHARED
-  src/franka_state_controller.cpp
-)
-target_link_libraries(franka_state_controller Franka::Franka)
-ament_target_dependencies(franka_state_controller franka_hw)
-target_include_directories(franka_state_controller PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-ament_target_dependencies(franka_state_controller
+find_package(catkin REQUIRED COMPONENTS
   controller_interface
+  controller_manager
   franka_hw
   franka_msgs
   geometry_msgs
+  message_generation
   pluginlib
-  rclcpp
-  rclcpp_lifecycle
   realtime_tools
+  roscpp
   sensor_msgs
-  tf2
-  tf2_geometry_msgs
+  tf
   tf2_msgs
 )
 
-add_executable(franka_control_node src/franka_control_node.cpp)
-ament_target_dependencies(franka_control_node controller_manager rclcpp)
+find_package(Franka 0.7.0 REQUIRED)
 
-pluginlib_export_plugin_description_file(controller_interface franka_controller_plugins.xml)
-
-install(TARGETS franka_state_controller franka_control_node
-  EXPORT export_franka_control
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
+catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES franka_state_controller
+  CATKIN_DEPENDS
+    controller_interface
+    franka_hw
+    franka_msgs
+    geometry_msgs
+    pluginlib
+    realtime_tools
+    roscpp
+    sensor_msgs
+    tf2_msgs
+  DEPENDS Franka
 )
-install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
-ament_export_include_directories(include)
-ament_export_libraries(franka_state_controller)
-ament_export_dependencies(controller_interface franka_hw franka_msgs geometry_msgs pluginlib rclcpp realtime_tools sensor_msgs tf2 tf2_msgs)
-ament_export_targets(export_franka_control HAS_LIBRARY_TARGET)
+## franka_state_controller
+add_library(franka_state_controller
+  src/franka_state_controller.cpp
+)
 
-ament_package()
+add_dependencies(franka_state_controller
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(franka_state_controller
+  ${Franka_LIBRARIES}
+  ${catkin_LIBRARIES}
+)
+
+target_include_directories(franka_state_controller SYSTEM PUBLIC
+  ${Franka_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
+target_include_directories(franka_state_controller PUBLIC
+  include
+)
+
+## franka_control_node
+add_executable(franka_control_node
+  src/franka_control_node.cpp
+)
+
+add_dependencies(franka_control_node
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(franka_control_node
+  ${Franka_LIBRARIES}
+  ${catkin_LIBRARIES}
+)
+
+target_include_directories(franka_control_node SYSTEM PUBLIC
+  ${Franka_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
+
+add_executable(franka_combined_control_node
+    src/franka_combined_control_node.cpp
+)
+
+add_dependencies(franka_combined_control_node
+    ${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(franka_combined_control_node
+  ${catkin_LIBRARIES}
+)
+
+target_include_directories(franka_combined_control_node SYSTEM PUBLIC
+  ${catkin_INCLUDE_DIRS}
+)
+
+
+## Installation
+install(TARGETS franka_state_controller
+                franka_control_node
+                franka_combined_control_node
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
+install(DIRECTORY launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+install(DIRECTORY config
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+install(FILES franka_controller_plugins.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+## Tools
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/ClangTools.cmake OPTIONAL
+  RESULT_VARIABLE CLANG_TOOLS
+)
+if(CLANG_TOOLS)
+  file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+  file(GLOB_RECURSE HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+  )
+  add_format_target(franka_control FILES ${SOURCES} ${HEADERS})
+  add_tidy_target(franka_control
+    FILES ${SOURCES}
+    DEPENDS franka_control_node franka_combined_control_node franka_state_controller
+  )
+endif()

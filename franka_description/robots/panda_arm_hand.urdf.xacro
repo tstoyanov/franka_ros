@@ -2,7 +2,6 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="panda">
   <xacro:include filename="$(find franka_description)/robots/panda_arm.xacro"/>
   <xacro:include filename="$(find franka_description)/robots/hand.xacro"/>
-  <xacro:include filename="$(find franka_description)/robots/panda.ros2_control.xacro"/>
 
   <!-- for simulation -->
   <xacro:arg name="effort_ifce" default="true"/>
@@ -15,17 +14,8 @@
   </xacro:unless>
   <!-- end for simulation -->
 
-  <!-- ros2_control -->
-  <xacro:arg name="arm_id" default="panda"/>
-  <xacro:arg name="robot_ip" default=""/>
-  <xacro:arg name="use_fake_hardware" default="false"/>
-  <!-- used by the gazebo/transmission macros -->
-  <xacro:arg name="load_gripper" default="true"/>
-
   <xacro:panda_arm safety_distance="0.03"/>
   <xacro:hand ns="panda" rpy="0 0 ${-pi/4}" connected_to="panda_link8" safety_distance="0.03"/>
-  <xacro:panda_ros2_control arm_id="$(arg arm_id)" robot_ip="$(arg robot_ip)"
-                             use_fake_hardware="$(arg use_fake_hardware)"/>
 
   <!-- for simulation -->
   <xacro:arg name="robot_name" default="panda"/>

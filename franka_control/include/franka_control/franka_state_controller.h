@@ -4,59 +4,65 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <vector>
 
-#include <controller_interface/controller_interface.hpp>
+#include <controller_interface/multi_interface_controller.h>
 #include <franka_hw/franka_state_interface.h>
 #include <franka_hw/trigger_rate.h>
-#include <franka_msgs/msg/franka_state.hpp>
-#include <geometry_msgs/msg/wrench_stamped.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
-#include <rclcpp_lifecycle/state.hpp>
-
-using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
-#include <realtime_tools/realtime_publisher.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
-#include <tf2_msgs/msg/tf_message.hpp>
+#include <franka_msgs/FrankaState.h>
+#include <geometry_msgs/WrenchStamped.h>
+#include <realtime_tools/realtime_publisher.h>
+#include <sensor_msgs/JointState.h>
+#include <tf2_msgs/TFMessage.h>
 
 namespace franka_control {
 
 /**
  * Controller to publish the robot state as ROS topics.
  */
-class FrankaStateController : public controller_interface::ControllerInterface {
+class FrankaStateController
+    : public controller_interface::MultiInterfaceController<franka_hw::FrankaStateInterface> {
  public:
   /**
    * Creates an instance of a FrankaStateController.
    */
   FrankaStateController() = default;
 
-  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
-  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
-  controller_interface::return_type update(const rclcpp::Time& time,
-                                           const rclcpp::Duration& period) override;
-  CallbackReturn on_init() override;
-  CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+  /**
+   * Initializes the controller with interfaces and publishers.
+   *
+   * @param[in] robot_hardware RobotHW instance to get a franka_hw::FrankaStateInterface from.
+   * @param[in] root_node_handle Node handle in the controller_manager namespace.
+   * @param[in] controller_node_handle Node handle in the controller namespace.
+   */
+  bool init(hardware_interface::RobotHW* robot_hardware,
+            ros::NodeHandle& root_node_handle,
+            ros::NodeHandle& controller_node_handle) override;
+
+  /**
+   * Reads the current robot state from the franka_hw::FrankaStateInterface and publishes it.
+   *
+   * @param[in] time Current ROS time.
+   * @param[in] period Time since the last update.
+   */
+  void update(const ros::Time& time, const ros::Duration& period) override;
 
  private:
-  void publishFrankaStates(const rclcpp::Time& time);
-  void publishJointStates(const rclcpp::Time& time);
-  void publishTransforms(const rclcpp::Time& time);
-  void publishExternalWrench(const rclcpp::Time& time);
+  void publishFrankaStates(const ros::Time& time);
+  void publishJointStates(const ros::Time& time);
+  void publishTransforms(const ros::Time& time);
+  void publishExternalWrench(const ros::Time& time);
 
   std::string arm_id_;
 
-  std::shared_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>> publisher_transforms_;
-  std::shared_ptr<realtime_tools::RealtimePublisher<franka_msgs::msg::FrankaState>>
-      publisher_franka_states_;
-  std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>
-      publisher_joint_states_;
-  std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>
-      publisher_joint_states_desired_;
-  std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped>>
-      publisher_external_wrench_;
+  franka_hw::FrankaStateInterface* franka_state_interface_{};
+  std::unique_ptr<franka_hw::FrankaStateHandle> franka_state_handle_{};
+
+  realtime_tools::RealtimePublisher<tf2_msgs::TFMessage> publisher_transforms_;
+  realtime_tools::RealtimePublisher<franka_msgs::FrankaState> publisher_franka_states_;
+  realtime_tools::RealtimePublisher<sensor_msgs::JointState> publisher_joint_states_;
+  realtime_tools::RealtimePublisher<sensor_msgs::JointState> publisher_joint_states_desired_;
+  realtime_tools::RealtimePublisher<geometry_msgs::WrenchStamped> publisher_external_wrench_;
   franka_hw::TriggerRate trigger_publish_;
   franka::RobotState robot_state_;
   uint64_t sequence_number_ = 0;

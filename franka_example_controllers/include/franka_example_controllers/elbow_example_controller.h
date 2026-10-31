@@ -3,31 +3,31 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <string>
 
-#include <controller_interface/controller_interface.hpp>
-#include <rclcpp/duration.hpp>
-#include <rclcpp/time.hpp>
-#include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
-#include <rclcpp_lifecycle/state.hpp>
-using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+#include <controller_interface/multi_interface_controller.h>
+#include <franka_hw/franka_state_interface.h>
+#include <hardware_interface/robot_hw.h>
+#include <ros/node_handle.h>
+#include <ros/time.h>
 
+#include <franka_hw/franka_cartesian_command_interface.h>
 
 namespace franka_example_controllers {
 
-class ElbowExampleController : public controller_interface::ControllerInterface {
+class ElbowExampleController
+    : public controller_interface::MultiInterfaceController<franka_hw::FrankaPoseCartesianInterface,
+                                                            franka_hw::FrankaStateInterface> {
  public:
-  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
-  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
-  controller_interface::return_type update(const rclcpp::Time& time,
-                                           const rclcpp::Duration& period) override;
-  CallbackReturn on_init() override;
-  CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
-  CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
+  bool init(hardware_interface::RobotHW* robot_hardware, ros::NodeHandle& node_handle) override;
+  void starting(const ros::Time&) override;
+  void update(const ros::Time&, const ros::Duration& period) override;
 
  private:
-  std::string arm_id_;
-  rclcpp::Duration elapsed_time_{0, 0};
+  franka_hw::FrankaPoseCartesianInterface* cartesian_pose_interface_;
+  std::unique_ptr<franka_hw::FrankaCartesianPoseHandle> cartesian_pose_handle_;
+  ros::Duration elapsed_time_;
   std::array<double, 16> initial_pose_{};
   std::array<double, 2> initial_elbow_{};
 };

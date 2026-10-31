@@ -1,28 +1,26 @@
 // Copyright (c) 2017 Franka Emika GmbH
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
-#include <memory>
-#include <string>
-#include <vector>
-
 #include <franka/exception.h>
 #include <franka/gripper.h>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
+#include <ros/ros.h>
+#include <sensor_msgs/JointState.h>
 
 int main(int argc, char** argv) {
-  rclcpp::init(argc, argv);
-  auto node = std::make_shared<rclcpp::Node>("gripper_joint_state_publisher");
-  node->declare_parameter("joint_names", std::vector<std::string>());
-  node->declare_parameter("robot_ip", std::string());
-  node->declare_parameter("publish_rate", 30.0);
+  ros::init(argc, argv, "gripper_joint_state_publisher");
+  ros::NodeHandle node_handle("~");
 
-  std::vector<std::string> joint_names = node->get_parameter("joint_names").as_string_array();
-  std::string robot_ip = node->get_parameter("robot_ip").as_string();
-  double publish_rate = node->get_parameter("publish_rate").as_double();
+  std::vector<std::string> joint_names;
+  node_handle.getParam("joint_names", joint_names);
 
-  rclcpp::Rate rate(publish_rate);
+  std::string robot_ip;
+  node_handle.getParam("robot_ip", robot_ip);
 
-  sensor_msgs::msg::JointState states;
+  double publish_rate;
+  node_handle.getParam("publish_rate", publish_rate);
+
+  ros::Rate rate(publish_rate);
+
+  sensor_msgs::JointState states;
   states.effort.resize(joint_names.size());
   states.name.resize(joint_names.size());
   states.position.resize(joint_names.size());
@@ -32,29 +30,28 @@ int main(int argc, char** argv) {
     states.name[i] = joint_names[i];
   }
 
-  auto publisher = node->create_publisher<sensor_msgs::msg::JointState>("joint_states", 1);
+  ros::Publisher publisher = node_handle.advertise<sensor_msgs::JointState>("joint_states", 1);
 
   try {
     franka::Gripper gripper(robot_ip);
 
-    while (rclcpp::ok()) {
+    while (ros::ok()) {
       franka::GripperState gripper_state = gripper.readOnce();
-      states.header.stamp = node->now();
+      states.header.stamp = ros::Time::now();
       for (size_t i = 0; i < joint_names.size(); i++) {
         states.position[i] = gripper_state.width * 0.5;
         states.velocity[i] = 0.0;
         states.effort[i] = 0.0;
       }
-      publisher->publish(states);
-      rclcpp::spin_some(node);
+      publisher.publish(states);
+      ros::spinOnce();
       rate.sleep();
     }
 
   } catch (const franka::Exception& e) {
-    RCLCPP_ERROR_STREAM(node->get_logger(), "Exception: " << e.what());
+    ROS_ERROR_STREAM("Exception: " << e.what());
     return -1;
   }
 
-  rclcpp::shutdown();
   return 0;
 }

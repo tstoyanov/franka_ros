@@ -5,17 +5,12 @@
 #include <array>
 
 #include <franka_hw/franka_state_interface.h>
+#include <hardware_interface/internal/hardware_resource_manager.h>
 
 namespace franka_hw {
 
-constexpr char kFrankaPoseCartesianInterface[] = "franka_hw/FrankaPoseCartesianInterface";
-constexpr char kFrankaVelocityCartesianInterface[] = "franka_hw/FrankaVelocityCartesianInterface";
-
 /**
  * Handle to read and command a Cartesian pose.
- *
- * In ros2_control the pose command is exported as 16 command interfaces
- * `<arm_id>/franka_hw/FrankaPoseCartesianInterface/O_T_EE_<ij>` plus a 2-dof elbow command.
  */
 class FrankaCartesianPoseHandle : public FrankaStateHandle {
  public:
@@ -62,23 +57,20 @@ class FrankaCartesianPoseHandle : public FrankaStateHandle {
    */
   const std::array<double, 16>& getCommand() const noexcept { return *command_; }
 
-  /**
-   * Gets the current elbow command.
-   *
-   * @return Current elbow command.
-   */
-  const std::array<double, 2>& getElbow() const noexcept { return *elbow_; }
-
  private:
   std::array<double, 16>* command_;
   std::array<double, 2>* elbow_;
 };
 
 /**
+ * Hardware interface to command Cartesian poses.
+ */
+class FrankaPoseCartesianInterface
+    : public hardware_interface::HardwareResourceManager<FrankaCartesianPoseHandle,
+                                                         hardware_interface::ClaimResources> {};
+
+/**
  * Handle to read and command a Cartesian velocity.
- *
- * In ros2_control the velocity command is exported as 6 command interfaces
- * `<arm_id>/franka_hw/FrankaVelocityCartesianInterface/O_dP_EE_<i>` plus a 2-dof elbow command.
  */
 class FrankaCartesianVelocityHandle : public FrankaStateHandle {
  public:
@@ -99,7 +91,7 @@ class FrankaCartesianVelocityHandle : public FrankaStateHandle {
    *
    * @param[in] command Command to set.
    */
-  void setCommand(const std::array<double, 6>& command) noexcept {
+  void setCommand(std::array<double, 6>& command) noexcept {
     *command_ = command;
     *elbow_ = {};
   }
@@ -123,16 +115,16 @@ class FrankaCartesianVelocityHandle : public FrankaStateHandle {
    */
   const std::array<double, 6>& getCommand() const noexcept { return *command_; }
 
-  /**
-   * Gets the current elbow command.
-   *
-   * @return Current elbow command.
-   */
-  const std::array<double, 2>& getElbow() const noexcept { return *elbow_; }
-
  private:
   std::array<double, 6>* command_;
   std::array<double, 2>* elbow_;
 };
+
+/**
+ * Hardware interface to command Cartesian velocities.
+ */
+class FrankaVelocityCartesianInterface
+    : public hardware_interface::HardwareResourceManager<FrankaCartesianVelocityHandle,
+                                                         hardware_interface::ClaimResources> {};
 
 }  // namespace franka_hw
