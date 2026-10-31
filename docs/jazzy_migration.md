@@ -171,9 +171,10 @@ libfranka stays pinned at `find_package(Franka 0.7.0 REQUIRED)` in every C++ pac
 
 ## 12. CI status
 
-`jazzy-ci.yaml` is green on the `jazzy` branch (run 41203935559): **Build and test (colcon)**
-(8 packages built, `franka_hw_test` gtest suite passing) and **Lint (ament linters)** both
-succeed in `tstoyanov/jazzy_libfranka:latest`.
+`jazzy-ci.yaml` is green on the `jazzy` branch (run 41212316537): **Build and test (colcon)**
+(8 packages built; gtest suites `franka_hw_test`, `franka_hw_urdf_test`,
+`example_controllers_test` passing) and **Lint (ament linters)** both succeed in
+`tstoyanov/jazzy_libfranka:latest`.
 
 ## 13. Code review findings (ros1_control -> ros2_control gotchas) and fixes
 

@@ -52,13 +52,6 @@ jobs:
         run: |
           source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
           source install/setup.bash
-          echo "--- ldd franka_hw_test ---"
-          ldd build/franka_hw/test/franka_hw_test | grep -i franka || true
-          echo "--- ldd franka_hw_urdf_test ---"
-          ldd build/franka_hw/test/franka_hw_urdf_test | grep -i franka || true
-          echo "--- readelf rpath ---"
-          readelf -d build/franka_hw/test/franka_hw_test | grep -E "RPATH|RUNPATH|NEEDED" || true
-          readelf -d build/franka_hw/test/franka_hw_urdf_test | grep -E "RPATH|RUNPATH|NEEDED" || true
           colcon test --event-handlers console_direct+
           colcon test-result --verbose
 
