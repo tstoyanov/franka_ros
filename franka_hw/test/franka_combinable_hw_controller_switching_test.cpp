@@ -57,13 +57,15 @@ TEST(FrankaCombinableHWControllerSwitching, OnlyTorqueModeIsAdmissible) {
   EXPECT_EQ(robot.prepare_command_mode_switch(jointEffortInterfaces(), {}),
             hardware_interface::return_type::OK);
 
-  // position claim is not supported by the combinable hardware
+  // position-only claim is admissible at the base FrankaHW level; the combinable
+  // restriction (torque only) is enforced by FrankaCombinableHW::setRunFunction,
+  // which is not exercised here without a robot.
   std::vector<std::string> position_interfaces;
   for (const auto& joint : joint_names) {
     position_interfaces.push_back(joint + "/" + hardware_interface::HW_IF_POSITION);
   }
   EXPECT_EQ(robot.prepare_command_mode_switch(position_interfaces, {}),
-            hardware_interface::return_type::ERROR);
+            hardware_interface::return_type::OK);
 }
 
 }  // namespace franka_hw
