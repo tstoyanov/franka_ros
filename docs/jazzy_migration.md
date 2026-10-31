@@ -144,3 +144,27 @@ loading model maps onto ros2_control as follows:
 Throughout: keep every libfranka call site byte-compatible with 0.7.0 semantics — do not adopt
 newer-libfranka APIs seen in `franka_arm_ros2`; where ros2_control forces an API change
 (e.g. `read`/`write` signatures), change only the ROS-facing glue, never the FCI calls.
+
+## 11. Progress checklist (jazzy branch)
+
+- [x] **Stage 1** — `jazzy` branch, GitHub Actions CI (`.github/workflows/jazzy-ci.yaml`, image
+  `tstoyanov/jazzy_libfranka:latest`), migration doc, README badge.
+- [x] **Stage 2** — `franka_msgs` (rosidl_generate_interfaces, msg/srv/action unchanged),
+  `franka_description` (ament_cmake).
+- [x] **Stage 3** — `franka_hw`: `SystemInterface` port of `FrankaHW`/`FrankaCombinableHW`;
+  custom interfaces exported as named state/command interfaces
+  (`<arm_id>/franka_hw/FrankaStateInterface/robot_state`, `.../FrankaModelInterface/robot_model`,
+  cartesian pose/velocity command interfaces); services -> rclcpp services; error recovery ->
+  rclcpp_action; `combined_robot_hw` dropped (multi-system ros2_control); tests ->
+  ament_cmake_gtest with synthetic HardwareInfo (no robot needed).
+- [x] **Stage 4** — `franka_control` (FrankaStateController as ControllerInterface, tf2,
+  ros2_control_node entry point, python launch) + `franka_visualization` (rclcpp nodes).
+- [x] **Stage 5** — `franka_gripper`: rclcpp_action servers (homing/stop/move/grasp +
+  GripperCommand), own actions via rosidl, rclcpp node with parameters.
+- [x] **Stage 6** — `franka_example_controllers`: all 11 controllers as ControllerInterface;
+  dynamic_reconfigure -> rclcpp dynamic parameters (same names/defaults/ranges);
+  `/desired_stiffness` topic kept in the mod controller; tf -> tf2_ros/tf2_eigen.
+- [x] **Stage 7** — metapackage, legacy CI files (Jenkinsfile/.travis.yml/.ci/cmake) removed,
+  all launch files -> python launch, README/docs updated.
+
+libfranka stays pinned at `find_package(Franka 0.7.0 REQUIRED)` in every C++ package.

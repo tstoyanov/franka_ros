@@ -202,10 +202,11 @@ std::vector<hardware_interface::StateInterface> FrankaHW::export_state_interface
         joint_names_[i], hardware_interface::HW_IF_EFFORT, &robot_state_ros_.tau_J[i]));
   }
   state_interfaces.emplace_back(hardware_interface::StateInterface(
-      arm_id_, kFrankaStateInterface, "robot_state", nullptr));
+      arm_id_, kFrankaStateInterface, "robot_state",
+      reinterpret_cast<double*>(&robot_state_ros_)));
   if (model_) {
     state_interfaces.emplace_back(hardware_interface::StateInterface(
-        arm_id_, kFrankaModelInterface, "robot_model", nullptr));
+        arm_id_, kFrankaModelInterface, "robot_model", reinterpret_cast<double*>(model_.get())));
   }
   return state_interfaces;
 }

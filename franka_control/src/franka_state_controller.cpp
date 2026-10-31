@@ -249,8 +249,7 @@ CallbackReturn FrankaStateController::on_configure(const rclcpp_lifecycle::State
 controller_interface::return_type FrankaStateController::update(const rclcpp::Time& time,
                                                                  const rclcpp::Duration& /*period*/) {
   if (trigger_publish_()) {
-    robot_state_ = *reinterpret_cast<const franka::RobotState*>(
-        state_interfaces_[0].get_value_interface().get_value());
+    robot_state_ = *static_cast<franka::RobotState*>(state_interfaces_[0].get_value());
     publishFrankaStates(time);
     publishTransforms(time);
     publishExternalWrench(time);
