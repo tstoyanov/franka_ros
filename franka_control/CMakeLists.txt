@@ -24,7 +24,8 @@ find_package(Franka 0.7.0 REQUIRED)
 add_library(franka_state_controller SHARED
   src/franka_state_controller.cpp
 )
-target_link_libraries(franka_state_controller Franka::Franka franka_hw)
+target_link_libraries(franka_state_controller Franka::Franka)
+ament_target_dependencies(franka_state_controller franka_hw)
 target_include_directories(franka_state_controller PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>

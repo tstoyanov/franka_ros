@@ -37,7 +37,8 @@ add_library(franka_example_controllers SHARED
   src/force_example_controller.cpp
   src/dual_arm_cartesian_impedance_example_controller.cpp
 )
-target_link_libraries(franka_example_controllers Franka::Franka franka_hw Eigen3::Eigen)
+target_link_libraries(franka_example_controllers Franka::Franka Eigen3::Eigen)
+ament_target_dependencies(franka_example_controllers franka_hw)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(franka_example_controllers ${cpp_typesupport_target})
 target_include_directories(franka_example_controllers PUBLIC
