@@ -58,16 +58,19 @@ TEST(FrankaHWControllerSwitching, AdmissibleRequests) {
   // single joint position claim
   EXPECT_EQ(robot.prepare_command_mode_switch(jointInterfaces(hardware_interface::HW_IF_POSITION), {}),
             hardware_interface::return_type::OK);
-  // torque + position combination
-  EXPECT_EQ(robot.prepare_command_mode_switch(jointInterfaces(hardware_interface::HW_IF_EFFORT), {}),
+  // torque + position combination is admissible
+  EXPECT_EQ(robot.prepare_command_mode_switch(jointInterfaces(hardware_interface::HW_IF_EFFORT),
+                                              jointInterfaces(hardware_interface::HW_IF_POSITION)),
             hardware_interface::return_type::OK);
-  // cartesian pose claim
+  // cartesian pose claim on its own
+  FrankaHW robot2;
+  ASSERT_EQ(robot2.initParameters(makeTestHardwareInfo()), CallbackReturn::SUCCESS);
   std::vector<std::string> pose_interfaces;
   for (size_t i = 0; i < 16; i++) {
     pose_interfaces.push_back(arm_id + "/" + kFrankaPoseCartesianInterface + "/O_T_EE_0" +
                               std::to_string(i));
   }
-  EXPECT_EQ(robot.prepare_command_mode_switch(pose_interfaces, {}),
+  EXPECT_EQ(robot2.prepare_command_mode_switch(pose_interfaces, {}),
             hardware_interface::return_type::OK);
   // stopping everything again
   EXPECT_EQ(robot.prepare_command_mode_switch(
