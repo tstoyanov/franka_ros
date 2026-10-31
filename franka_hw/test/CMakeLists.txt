@@ -24,7 +24,7 @@ ament_target_dependencies(franka_hw_test
 ament_add_gtest(franka_hw_urdf_test
   franka_hw_urdf_test.cpp
 )
-target_link_libraries(franka_hw_urdf_test franka_hw franka_control_services)
+target_link_libraries(franka_hw_urdf_test franka_hw franka_control_services Franka::Franka)
 target_include_directories(franka_hw_urdf_test PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
