@@ -11,6 +11,7 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <franka_example_controllers/example_controllers_common.h>
 #include <franka_example_controllers/pseudo_inversion.h>
@@ -314,7 +315,7 @@ void DualArmCartesianImpedanceExampleController::targetPoseCallback(
     std::lock_guard<std::mutex> lock(target_mutex_);
     // Set target for the left robot.
     auto& left_arm_data = arms_data_.at(left_arm_id_);
-    Eigen::Affine3d Ol_T_C = tf2::transformToEigen(msg->pose);
+    Eigen::Affine3d Ol_T_C = tf2::fromMsg(msg->pose);
     Eigen::Affine3d Ol_T_EEl_d =      // NOLINT (readability-identifier-naming)
         Ol_T_C * EEl_T_C_.inverse();  // NOLINT (readability-identifier-naming)
     left_arm_data.position_d_target_ = Ol_T_EEl_d.translation();
