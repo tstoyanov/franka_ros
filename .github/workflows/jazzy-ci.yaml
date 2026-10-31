@@ -80,7 +80,7 @@ jobs:
             ros-${{ env.ROS_DISTRO }}-ament-cmake-clang-format \
             ros-${{ env.ROS_DISTRO }}-ament-cmake-cppcheck \
             ros-${{ env.ROS_DISTRO }}-ament-cmake-uncrustify \
-            ros-${{ env.ROS_DISTRO }}-ament-cmake-xmllint \
+            ros-${{ env.ROS_DISTRO }}-ament-cmake-xmllint
           rm -rf /var/lib/apt/lists/*
 
       - name: Run linters

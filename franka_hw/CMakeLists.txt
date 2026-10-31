@@ -14,13 +14,26 @@ find_package(std_msgs REQUIRED)
 find_package(franka_msgs REQUIRED)
 find_package(Franka 0.7.0 REQUIRED)
 
+add_library(franka_control_services SHARED
+  src/services.cpp
+)
+target_link_libraries(franka_control_services Franka::Franka)
+target_include_directories(franka_control_services PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(franka_control_services
+  rclcpp
+  franka_msgs
+)
+
 add_library(franka_hw SHARED
   src/control_mode.cpp
   src/franka_hw.cpp
   src/franka_combinable_hw.cpp
   src/trigger_rate.cpp
 )
-target_link_libraries(franka_hw Franka::Franka)
+target_link_libraries(franka_hw Franka::Franka franka_control_services)
 target_include_directories(franka_hw PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -32,19 +45,6 @@ ament_target_dependencies(franka_hw
   rclcpp_action
   rclcpp_lifecycle
   std_msgs
-  franka_msgs
-)
-
-add_library(franka_control_services SHARED
-  src/services.cpp
-)
-target_link_libraries(franka_control_services Franka::Franka)
-target_include_directories(franka_control_services PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-ament_target_dependencies(franka_control_services
-  rclcpp
   franka_msgs
 )
 
