@@ -1,8 +1,10 @@
 // Copyright (c) 2019 Franka Emika GmbH
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <string>
@@ -112,6 +114,13 @@ TEST(FrankaUrdfTest, DeclaredInterfacesMatchExportedInterfaces) {
   franka_hw::FrankaHW hardware;
   // initParameters only (do not connect to a robot).
   ASSERT_EQ(hardware.initParameters(info), CallbackReturn::SUCCESS);
+
+  // Sanity-check the NaN command validation while we have the hardware here (this also
+  // anchors a direct libfranka symbol reference in this test binary).
+  EXPECT_TRUE(franka_hw::FrankaHW::commandHasNaN(
+      franka::JointPositions({std::numeric_limits<double>::quiet_NaN(), 0, 0, 0, 0, 0, 0})));
+  EXPECT_FALSE(franka_hw::FrankaHW::commandHasNaN(
+      franka::JointPositions({0, 0, 0, 0, 0, 0, 0})));
 
   // Collect the interface names exported by the hardware. The model interface is
   // only exported once a robot connection loaded the franka::Model, so it is added
