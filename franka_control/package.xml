@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
   <name>franka_control</name>
   <version>0.7.0</version>
   <description>franka_control provides a hardware node to control a Franka Emika research robot</description>
@@ -11,20 +11,23 @@
   <url type="bugtracker">https://github.com/frankaemika/franka_ros/issues</url>
   <author>Franka Emika GmbH</author>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>libfranka</depend>
   <depend>controller_interface</depend>
   <depend>controller_manager</depend>
   <depend>franka_hw</depend>
   <depend>franka_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_action</depend>
+  <depend>rclcpp_lifecycle</depend>
   <depend>realtime_tools</depend>
-  <depend>roscpp</depend>
   <depend>sensor_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
   <depend>tf2_msgs</depend>
-  <depend>tf</depend>
+  <depend>libfranka</depend>
 
   <exec_depend>franka_description</exec_depend>
   <exec_depend>franka_gripper</exec_depend>
@@ -32,6 +35,6 @@
   <exec_depend>robot_state_publisher</exec_depend>
 
   <export>
-    <controller_interface plugin="${prefix}/franka_controller_plugins.xml"/>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

@@ -9,24 +9,40 @@
 
 #include <franka/errors.h>
 #include <franka_hw/franka_cartesian_command_interface.h>
-#include <franka_msgs/Errors.h>
-#include <hardware_interface/hardware_interface.h>
+#include <franka_msgs/msg/errors.hpp>
+
 #include <pluginlib/class_list_macros.h>
-#include <ros/ros.h>
-#include <tf/tf.h>
-#include <tf/transform_datatypes.h>
+#include <rclcpp/rclcpp.hpp>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2/LinearMath/Vector3.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
 
 namespace {
 
-tf::Transform convertArrayToTf(const std::array<double, 16>& transform) {
-  tf::Matrix3x3 rotation(transform[0], transform[4], transform[8], transform[1], transform[5],
-                         transform[9], transform[2], transform[6], transform[10]);
-  tf::Vector3 translation(transform[12], transform[13], transform[14]);
-  return tf::Transform(rotation, translation);
+tf2::Transform convertArrayToTf(const std::array<double, 16>& transform) {
+  tf2::Matrix3x3 rotation(transform[0], transform[4], transform[8], transform[1], transform[5],
+                          transform[9], transform[2], transform[6], transform[10]);
+  tf2::Vector3 translation(transform[12], transform[13], transform[14]);
+  return tf2::Transform(rotation, translation);
 }
 
-franka_msgs::Errors errorsToMessage(const franka::Errors& error) {
-  franka_msgs::Errors message;
+geometry_msgs::msg::TransformStamped toTransformStampedMsg(const tf2::Transform& transform,
+                                                           const rclcpp::Time& stamp,
+                                                           const std::string& parent_frame,
+                                                           const std::string& child_frame) {
+  geometry_msgs::msg::TransformStamped msg;
+  msg.header.stamp = stamp;
+  msg.header.frame_id = parent_frame;
+  msg.child_frame_id = child_frame;
+  msg.transform = tf2::toMsg(transform);
+  return msg;
+}
+
+franka_msgs::msg::Errors errorsToMessage(const franka::Errors& error) {
+  franka_msgs::msg::Errors message;
   message.joint_position_limits_violation =
       static_cast<decltype(message.joint_position_limits_violation)>(
           error.joint_position_limits_violation);
@@ -135,49 +151,59 @@ franka_msgs::Errors errorsToMessage(const franka::Errors& error) {
 
 namespace franka_control {
 
-bool FrankaStateController::init(hardware_interface::RobotHW* robot_hardware,
-                                 ros::NodeHandle& root_node_handle,
-                                 ros::NodeHandle& controller_node_handle) {
-  franka_state_interface_ = robot_hardware->get<franka_hw::FrankaStateInterface>();
-  if (franka_state_interface_ == nullptr) {
-    ROS_ERROR("FrankaStateController: Could not get Franka state interface from hardware");
-    return false;
+CallbackReturn FrankaStateController::on_init() {
+  try {
+    auto_declare("arm_id", std::string());
+    auto_declare("publish_rate", 30.0);
+    auto_declare("joint_names", std::vector<std::string>());
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(get_node()->get_logger(), "Exception during init: %s", e.what());
+    return CallbackReturn::ERROR;
   }
-  if (!controller_node_handle.getParam("arm_id", arm_id_)) {
-    ROS_ERROR("FrankaStateController: Could not get parameter arm_id");
-    return false;
+  return CallbackReturn::SUCCESS;
+}
+
+controller_interface::InterfaceConfiguration
+FrankaStateController::command_interface_configuration() const {
+  controller_interface::InterfaceConfiguration config;
+  config.type = controller_interface::interface_configuration_type::NONE;
+  return config;
+}
+
+controller_interface::InterfaceConfiguration
+FrankaStateController::state_interface_configuration() const {
+  controller_interface::InterfaceConfiguration config;
+  config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+  config.names.push_back(arm_id_ + "/" + franka_hw::kFrankaStateInterface + "/robot_state");
+  return config;
+}
+
+CallbackReturn FrankaStateController::on_configure(const rclcpp_lifecycle::State& /*previous_state*/) {
+  arm_id_ = get_node()->get_parameter("arm_id").as_string();
+  if (arm_id_.empty()) {
+    RCLCPP_ERROR(get_node()->get_logger(), "FrankaStateController: Could not get parameter arm_id");
+    return CallbackReturn::ERROR;
   }
-  double publish_rate(30.0);
-  if (!controller_node_handle.getParam("publish_rate", publish_rate)) {
-    ROS_INFO_STREAM("FrankaStateController: Did not find publish_rate. Using default "
-                    << publish_rate << " [Hz].");
-  }
+  double publish_rate = get_node()->get_parameter("publish_rate").as_double();
   trigger_publish_ = franka_hw::TriggerRate(publish_rate);
 
-  if (!controller_node_handle.getParam("joint_names", joint_names_) ||
-      joint_names_.size() != robot_state_.q.size()) {
-    ROS_ERROR(
-        "FrankaStateController: Invalid or no joint_names parameters provided, aborting "
-        "controller init!");
-    return false;
+  joint_names_ = get_node()->get_parameter("joint_names").as_string_array();
+  if (joint_names_.size() != robot_state_.q.size()) {
+    RCLCPP_ERROR(get_node()->get_logger(),
+                 "FrankaStateController: Invalid or no joint_names parameters provided, aborting "
+                 "controller init!");
+    return CallbackReturn::ERROR;
   }
 
-  try {
-    franka_state_handle_ = std::make_unique<franka_hw::FrankaStateHandle>(
-        franka_state_interface_->getHandle(arm_id_ + "_robot"));
-  } catch (const hardware_interface::HardwareInterfaceException& ex) {
-    ROS_ERROR_STREAM("FrankaStateController: Exception getting franka state handle: " << ex.what());
-    return false;
-  }
-
-  publisher_transforms_.init(root_node_handle, "/tf", 1);
-  publisher_franka_states_.init(controller_node_handle, "franka_states", 1);
-  publisher_joint_states_.init(controller_node_handle, "joint_states", 1);
-  publisher_joint_states_desired_.init(controller_node_handle, "joint_states_desired", 1);
-  publisher_external_wrench_.init(controller_node_handle, "F_ext", 1);
+  auto node = get_node();
+  publisher_transforms_.init(node, "/tf", 1);
+  publisher_franka_states_.init(node, "franka_states", 1);
+  publisher_joint_states_.init(node, "joint_states", 1);
+  publisher_joint_states_desired_.init(node, "joint_states_desired", 1);
+  publisher_external_wrench_.init(node, "F_ext", 1);
 
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<sensor_msgs::JointState>> lock(
+    std::lock_guard<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>> lock(
         publisher_joint_states_);
     publisher_joint_states_.msg_.name.resize(joint_names_.size());
     publisher_joint_states_.msg_.position.resize(robot_state_.q.size());
@@ -185,7 +211,7 @@ bool FrankaStateController::init(hardware_interface::RobotHW* robot_hardware,
     publisher_joint_states_.msg_.effort.resize(robot_state_.tau_J.size());
   }
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<sensor_msgs::JointState>> lock(
+    std::lock_guard<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>> lock(
         publisher_joint_states_desired_);
     publisher_joint_states_desired_.msg_.name.resize(joint_names_.size());
     publisher_joint_states_desired_.msg_.position.resize(robot_state_.q_d.size());
@@ -193,26 +219,21 @@ bool FrankaStateController::init(hardware_interface::RobotHW* robot_hardware,
     publisher_joint_states_desired_.msg_.effort.resize(robot_state_.tau_J_d.size());
   }
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<tf2_msgs::TFMessage>> lock(
+    std::lock_guard<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>> lock(
         publisher_transforms_);
     publisher_transforms_.msg_.transforms.resize(2);
-    tf::Quaternion quaternion(0.0, 0.0, 0.0, 1.0);
-    tf::Vector3 translation(0.0, 0.0, 0.05);
-    tf::Transform transform(quaternion, translation);
-    tf::StampedTransform stamped_transform(transform, ros::Time::now(), arm_id_ + "_link8",
-                                           arm_id_ + "_EE");
-    geometry_msgs::TransformStamped transform_message;
-    transformStampedTFToMsg(stamped_transform, transform_message);
-    publisher_transforms_.msg_.transforms[0] = transform_message;
-    translation = tf::Vector3(0.0, 0.0, 0.0);
-    transform = tf::Transform(quaternion, translation);
-    stamped_transform =
-        tf::StampedTransform(transform, ros::Time::now(), arm_id_ + "_EE", arm_id_ + "_K");
-    transformStampedTFToMsg(stamped_transform, transform_message);
-    publisher_transforms_.msg_.transforms[1] = transform_message;
+    tf2::Quaternion quaternion(0.0, 0.0, 0.0, 1.0);
+    tf2::Vector3 translation(0.0, 0.0, 0.05);
+    tf2::Transform transform(quaternion, translation);
+    publisher_transforms_.msg_.transforms[0] =
+        toTransformStampedMsg(transform, node->now(), arm_id_ + "_link8", arm_id_ + "_EE");
+    translation = tf2::Vector3(0.0, 0.0, 0.0);
+    transform = tf2::Transform(quaternion, translation);
+    publisher_transforms_.msg_.transforms[1] =
+        toTransformStampedMsg(transform, node->now(), arm_id_ + "_EE", arm_id_ + "_K");
   }
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<geometry_msgs::WrenchStamped>> lock(
+    std::lock_guard<realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped>> lock(
         publisher_external_wrench_);
     publisher_external_wrench_.msg_.header.frame_id = arm_id_ + "_K";
     publisher_external_wrench_.msg_.wrench.force.x = 0.0;
@@ -222,21 +243,24 @@ bool FrankaStateController::init(hardware_interface::RobotHW* robot_hardware,
     publisher_external_wrench_.msg_.wrench.torque.y = 0.0;
     publisher_external_wrench_.msg_.wrench.torque.z = 0.0;
   }
-  return true;
+  return CallbackReturn::SUCCESS;
 }
 
-void FrankaStateController::update(const ros::Time& time, const ros::Duration& /* period */) {
+controller_interface::return_type FrankaStateController::update(const rclcpp::Time& time,
+                                                                 const rclcpp::Duration& /*period*/) {
   if (trigger_publish_()) {
-    robot_state_ = franka_state_handle_->getRobotState();
+    robot_state_ = *reinterpret_cast<const franka::RobotState*>(
+        state_interfaces_[0].get_value_interface().get_value());
     publishFrankaStates(time);
     publishTransforms(time);
     publishExternalWrench(time);
     publishJointStates(time);
     sequence_number_++;
   }
+  return controller_interface::return_type::OK;
 }
 
-void FrankaStateController::publishFrankaStates(const ros::Time& time) {
+void FrankaStateController::publishFrankaStates(const rclcpp::Time& time) {
   if (publisher_franka_states_.trylock()) {
     static_assert(
         sizeof(robot_state_.cartesian_collision) == sizeof(robot_state_.cartesian_contact),
@@ -358,43 +382,43 @@ void FrankaStateController::publishFrankaStates(const ros::Time& time) {
 
     switch (robot_state_.robot_mode) {
       case franka::RobotMode::kOther:
-        publisher_franka_states_.msg_.robot_mode = franka_msgs::FrankaState::ROBOT_MODE_OTHER;
+        publisher_franka_states_.msg_.robot_mode = franka_msgs::msg::FrankaState::ROBOT_MODE_OTHER;
         break;
 
       case franka::RobotMode::kIdle:
-        publisher_franka_states_.msg_.robot_mode = franka_msgs::FrankaState::ROBOT_MODE_IDLE;
+        publisher_franka_states_.msg_.robot_mode = franka_msgs::msg::FrankaState::ROBOT_MODE_IDLE;
         break;
 
       case franka::RobotMode::kMove:
-        publisher_franka_states_.msg_.robot_mode = franka_msgs::FrankaState::ROBOT_MODE_MOVE;
+        publisher_franka_states_.msg_.robot_mode = franka_msgs::msg::FrankaState::ROBOT_MODE_MOVE;
         break;
 
       case franka::RobotMode::kGuiding:
-        publisher_franka_states_.msg_.robot_mode = franka_msgs::FrankaState::ROBOT_MODE_GUIDING;
+        publisher_franka_states_.msg_.robot_mode = franka_msgs::msg::FrankaState::ROBOT_MODE_GUIDING;
         break;
 
       case franka::RobotMode::kReflex:
-        publisher_franka_states_.msg_.robot_mode = franka_msgs::FrankaState::ROBOT_MODE_REFLEX;
+        publisher_franka_states_.msg_.robot_mode = franka_msgs::msg::FrankaState::ROBOT_MODE_REFLEX;
         break;
 
       case franka::RobotMode::kUserStopped:
         publisher_franka_states_.msg_.robot_mode =
-            franka_msgs::FrankaState::ROBOT_MODE_USER_STOPPED;
+            franka_msgs::msg::FrankaState::ROBOT_MODE_USER_STOPPED;
         break;
 
       case franka::RobotMode::kAutomaticErrorRecovery:
         publisher_franka_states_.msg_.robot_mode =
-            franka_msgs::FrankaState::ROBOT_MODE_AUTOMATIC_ERROR_RECOVERY;
+            franka_msgs::msg::FrankaState::ROBOT_MODE_AUTOMATIC_ERROR_RECOVERY;
         break;
     }
 
-    publisher_franka_states_.msg_.header.seq = sequence_number_;
+    publisher_franka_states_.msg_.header.stamp = time;
     publisher_franka_states_.msg_.header.stamp = time;
     publisher_franka_states_.unlockAndPublish();
   }
 }
 
-void FrankaStateController::publishJointStates(const ros::Time& time) {
+void FrankaStateController::publishJointStates(const rclcpp::Time& time) {
   if (publisher_joint_states_.trylock()) {
     static_assert(sizeof(robot_state_.q) == sizeof(robot_state_.dq),
                   "Robot state joint members do not have same size");
@@ -407,7 +431,7 @@ void FrankaStateController::publishJointStates(const ros::Time& time) {
       publisher_joint_states_.msg_.effort[i] = robot_state_.tau_J[i];
     }
     publisher_joint_states_.msg_.header.stamp = time;
-    publisher_joint_states_.msg_.header.seq = sequence_number_;
+    
     publisher_joint_states_.unlockAndPublish();
   }
   if (publisher_joint_states_desired_.trylock()) {
@@ -422,27 +446,24 @@ void FrankaStateController::publishJointStates(const ros::Time& time) {
       publisher_joint_states_desired_.msg_.effort[i] = robot_state_.tau_J_d[i];
     }
     publisher_joint_states_desired_.msg_.header.stamp = time;
-    publisher_joint_states_desired_.msg_.header.seq = sequence_number_;
+    
     publisher_joint_states_desired_.unlockAndPublish();
   }
 }
 
-void FrankaStateController::publishTransforms(const ros::Time& time) {
+void FrankaStateController::publishTransforms(const rclcpp::Time& time) {
   if (publisher_transforms_.trylock()) {
-    tf::StampedTransform stamped_transform(convertArrayToTf(robot_state_.F_T_EE), time,
-                                           arm_id_ + "_link8", arm_id_ + "_EE");
-    geometry_msgs::TransformStamped transform_message;
-    transformStampedTFToMsg(stamped_transform, transform_message);
-    publisher_transforms_.msg_.transforms[0] = transform_message;
-    stamped_transform = tf::StampedTransform(convertArrayToTf(robot_state_.EE_T_K), time,
-                                             arm_id_ + "_EE", arm_id_ + "_K");
-    transformStampedTFToMsg(stamped_transform, transform_message);
-    publisher_transforms_.msg_.transforms[1] = transform_message;
+    publisher_transforms_.msg_.transforms[0] =
+        toTransformStampedMsg(convertArrayToTf(robot_state_.F_T_EE), time, arm_id_ + "_link8",
+                              arm_id_ + "_EE");
+    publisher_transforms_.msg_.transforms[1] =
+        toTransformStampedMsg(convertArrayToTf(robot_state_.EE_T_K), time, arm_id_ + "_EE",
+                              arm_id_ + "_K");
     publisher_transforms_.unlockAndPublish();
   }
 }
 
-void FrankaStateController::publishExternalWrench(const ros::Time& time) {
+void FrankaStateController::publishExternalWrench(const rclcpp::Time& time) {
   if (publisher_external_wrench_.trylock()) {
     publisher_external_wrench_.msg_.header.frame_id = arm_id_ + "_K";
     publisher_external_wrench_.msg_.header.stamp = time;
@@ -458,4 +479,4 @@ void FrankaStateController::publishExternalWrench(const ros::Time& time) {
 
 }  // namespace franka_control
 
-PLUGINLIB_EXPORT_CLASS(franka_control::FrankaStateController, controller_interface::ControllerBase)
+PLUGINLIB_EXPORT_CLASS(franka_control::FrankaStateController, controller_interface::ControllerInterface)
