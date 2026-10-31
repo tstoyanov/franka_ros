@@ -89,8 +89,12 @@ void DualArmCartesianImpedanceExampleController::applyComplianceParameters() {
     arm_data.nullspace_stiffness_target_ = node->get_parameter(prefix + ".nullspace_stiffness").as_double();
   };
   std::lock_guard<std::mutex> lock(target_mutex_);
-  set_arm("left", arms_data_.at(left_arm_id_));
-  set_arm("right", arms_data_.at(right_arm_id_));
+  if (arms_data_.find(left_arm_id_) != arms_data_.end()) {
+    set_arm("left", arms_data_.at(left_arm_id_));
+  }
+  if (arms_data_.find(right_arm_id_) != arms_data_.end()) {
+    set_arm("right", arms_data_.at(right_arm_id_));
+  }
 }
 
 CallbackReturn DualArmCartesianImpedanceExampleController::on_configure(
@@ -111,12 +115,6 @@ CallbackReturn DualArmCartesianImpedanceExampleController::on_configure(
       "centering_frame_target_pose", 1,
       std::bind(&DualArmCartesianImpedanceExampleController::targetPoseCallback, this,
                 std::placeholders::_1));
-
-  bool left_success = initArm(left_arm_id_, left_joint_names_, 0, 0);
-  bool right_success = initArm(right_arm_id_, right_joint_names_, 2, 7);
-  if (!left_success || !right_success) {
-    return CallbackReturn::ERROR;
-  }
 
   param_callback_handle_ = node->add_on_set_parameters_callback(
       [this](const std::vector<rclcpp::Parameter>&) {
@@ -175,6 +173,15 @@ void DualArmCartesianImpedanceExampleController::startingArm(FrankaDataContainer
 
 CallbackReturn DualArmCartesianImpedanceExampleController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
+  // The state interfaces (and thus the robot state pointers) are only loaned to the
+  // controller at activation time, so the per-arm handles are created here.
+  arms_data_.clear();
+  bool left_success = initArm(left_arm_id_, left_joint_names_, 0, 0);
+  bool right_success = initArm(right_arm_id_, right_joint_names_, 2, 7);
+  if (!left_success || !right_success) {
+    return CallbackReturn::ERROR;
+  }
+  applyComplianceParameters();
   for (auto& arm_data : arms_data_) {
     startingArm(arm_data.second);
   }

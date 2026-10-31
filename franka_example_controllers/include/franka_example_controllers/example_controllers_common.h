@@ -86,11 +86,21 @@ inline void setCartesianPoseCommand(
     std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces,
     const std::array<double, 16>& pose,
     const std::array<double, 2>& elbow = {0.0, 0.0}) {
+  setCartesianPoseOffsetCommand(command_interfaces, 0, pose, elbow);
+}
+
+// Same as setCartesianPoseCommand but for controllers whose command_interfaces_ vector starts
+// with other interfaces (e.g. joint effort commands) before the cartesian pose interfaces.
+inline void setCartesianPoseOffsetCommand(
+    std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces,
+    size_t offset,
+    const std::array<double, 16>& pose,
+    const std::array<double, 2>& elbow = {0.0, 0.0}) {
   for (size_t i = 0; i < 16; i++) {
-    command_interfaces[i].set_value(pose[i]);
+    command_interfaces[offset + i].set_value(pose[i]);
   }
-  command_interfaces[16].set_value(elbow[0]);
-  command_interfaces[17].set_value(elbow[1]);
+  command_interfaces[offset + 16].set_value(elbow[0]);
+  command_interfaces[offset + 17].set_value(elbow[1]);
 }
 inline std::array<double, 6> getCartesianVelocityCommand(
     const std::vector<hardware_interface::LoanedCommandInterface>& command_interfaces) {

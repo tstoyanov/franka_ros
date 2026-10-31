@@ -33,6 +33,13 @@ controller_interface::InterfaceConfiguration ModelExampleController::state_inter
 CallbackReturn ModelExampleController::on_configure(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   arm_id_ = get_node()->get_parameter("arm_id").as_string();
+  return CallbackReturn::SUCCESS;
+}
+
+CallbackReturn ModelExampleController::on_activate(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  // The state interfaces (and thus the robot state pointer) are only loaned to the
+  // controller at activation time, so the model handle is created here.
   // state_interfaces_[0] holds the franka::RobotState pointer, state_interfaces_[1] the model.
   auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
   auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());

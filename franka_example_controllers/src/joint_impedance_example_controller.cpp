@@ -29,15 +29,21 @@ CallbackReturn JointImpedanceExampleController::on_init() {
 
 controller_interface::InterfaceConfiguration
 JointImpedanceExampleController::command_interface_configuration() const {
-  return {controller_interface::interface_configuration_type::INDIVIDUAL,
-          jointCommandInterfaces(joint_names_, hardware_interface::HW_IF_EFFORT)};
+  // The controller commands joint torques and additionally claims the cartesian pose
+  // command interfaces to feed libfranka's internal motion generator (the ROS 1 version
+  // used the FrankaCartesianPoseHandle for the same purpose).
+  std::vector<std::string> interfaces =
+      jointCommandInterfaces(joint_names_, hardware_interface::HW_IF_EFFORT);
+  for (const auto& iface : cartesianPoseCommandInterfaces(arm_id_)) {
+    interfaces.push_back(iface);
+  }
+  return {controller_interface::interface_configuration_type::INDIVIDUAL, interfaces};
 }
 
 controller_interface::InterfaceConfiguration
 JointImpedanceExampleController::state_interface_configuration() const {
   return {controller_interface::interface_configuration_type::INDIVIDUAL,
-          {frankaStateInterface(arm_id_), frankaModelInterface(arm_id_),
-           cartesianPoseCommandInterfaces(arm_id_)[0]}};
+          {frankaStateInterface(arm_id_), frankaModelInterface(arm_id_)}};
 }
 
 CallbackReturn JointImpedanceExampleController::on_configure(
@@ -69,12 +75,6 @@ CallbackReturn JointImpedanceExampleController::on_configure(
   rate_trigger_ = franka_hw::TriggerRate(node->get_parameter("publish_rate").as_double());
   coriolis_factor_ = node->get_parameter("coriolis_factor").as_double();
 
-  // state_interfaces_[0] = robot_state ptr, [1] = model ptr, [2] = first cartesian pose cmd iface
-  auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
-  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
-  model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
-                                                                  *robot_state);
-
     torques_publisher_ =
       std::make_shared<realtime_tools::RealtimePublisher<franka_example_controllers::msg::JointTorqueComparison>>(
           node->create_publisher<franka_example_controllers::msg::JointTorqueComparison>(
@@ -85,8 +85,14 @@ CallbackReturn JointImpedanceExampleController::on_configure(
 
 CallbackReturn JointImpedanceExampleController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
-  auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
-  initial_pose_ = robot_state.O_T_EE_d;
+  // The state interfaces (and thus the robot state pointer) are only loaned to the
+  // controller at activation time, so the model handle is created here.
+  auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
+  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
+  model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
+                                                                  *robot_state);
+  auto& robot_state_ref = robotStateFromInterface(state_interfaces_[0]);
+  initial_pose_ = robot_state_ref.O_T_EE_d;
   return CallbackReturn::SUCCESS;
 }
 
@@ -108,7 +114,9 @@ controller_interface::return_type JointImpedanceExampleController::update(
   std::array<double, 16> pose_desired = initial_pose_;
   pose_desired[13] += delta_y;
   pose_desired[14] += delta_z;
-  setCartesianPoseCommand(command_interfaces_, pose_desired);
+  // command_interfaces_[0..6] are the joint effort interfaces, the cartesian pose
+  // command interfaces follow at offset 7.
+  setCartesianPoseOffsetCommand(command_interfaces_, 7, pose_desired);
 
   auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> coriolis = model_handle_->getCoriolis();

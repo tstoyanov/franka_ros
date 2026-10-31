@@ -32,6 +32,12 @@ CartesianPoseExampleController::state_interface_configuration() const {
 CallbackReturn CartesianPoseExampleController::on_configure(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   arm_id_ = get_node()->get_parameter("arm_id").as_string();
+  return CallbackReturn::SUCCESS;
+}
+
+CallbackReturn CartesianPoseExampleController::on_activate(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  // The state interfaces are only loaned to the controller at activation time.
   const auto& state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
   for (size_t i = 0; i < q_start.size(); i++) {
@@ -42,12 +48,6 @@ CallbackReturn CartesianPoseExampleController::on_configure(
       return CallbackReturn::ERROR;
     }
   }
-  return CallbackReturn::SUCCESS;
-}
-
-CallbackReturn CartesianPoseExampleController::on_activate(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
-  const auto& state = robotStateFromInterface(state_interfaces_[0]);
   initial_pose_ = state.O_T_EE_d;
   elapsed_time_ = rclcpp::Duration(0, 0);
   return CallbackReturn::SUCCESS;

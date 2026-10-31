@@ -49,11 +49,6 @@ CallbackReturn ForceExampleController::on_configure(
     return CallbackReturn::ERROR;
   }
 
-  auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
-  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
-  model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
-                                                                  *robot_state);
-
   target_mass_ = node->get_parameter("desired_mass").as_double();
   target_k_p_ = node->get_parameter("k_p").as_double();
   target_k_i_ = node->get_parameter("k_i").as_double();
@@ -78,6 +73,12 @@ CallbackReturn ForceExampleController::on_configure(
 
 CallbackReturn ForceExampleController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
+  // The state interfaces (and thus the robot state pointer) are only loaned to the
+  // controller at activation time, so the model handle is created here.
+  auto* robot_state_ptr = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
+  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
+  model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
+                                                                  *robot_state_ptr);
   auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> gravity_array = model_handle_->getGravity();
   Eigen::Map<Eigen::Matrix<double, 7, 1>> tau_measured(robot_state.tau_J.data());

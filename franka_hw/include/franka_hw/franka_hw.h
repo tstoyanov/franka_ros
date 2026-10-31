@@ -9,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <franka/control_types.h>
@@ -32,6 +33,11 @@
 #include <franka_hw/franka_cartesian_command_interface.h>
 #include <franka_hw/franka_model_interface.h>
 #include <franka_hw/franka_state_interface.h>
+#include <franka_hw/services.h>
+
+#include <franka_msgs/action/error_recovery.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
@@ -49,7 +55,7 @@ class FrankaHW : public hardware_interface::SystemInterface {
    */
   FrankaHW();
 
-  virtual ~FrankaHW() override = default;
+  ~FrankaHW() override;
 
   /**
    * Initializes the hardware interface from the URDF/hardware info, connects to the robot via
@@ -110,7 +116,10 @@ class FrankaHW : public hardware_interface::SystemInterface {
    * @throw franka::RealtimeException if realtime priority cannot be set for the current thread.
    */
   virtual void control(
-      const std::function<bool(const rclcpp::Time&, const rclcpp::Duration&)>& ros_callback) const;
+      const std::function<bool(const rclcpp::Time&, const rclcpp::Duration&)>& ros_callback =
+          [](const rclcpp::Time&, const rclcpp::Duration&) {
+            return true;
+          }) const;
 
   /**
    * Updates the robot state published through the state interfaces.
@@ -197,6 +206,37 @@ class FrankaHW : public hardware_interface::SystemInterface {
   const std::string& armId() const noexcept { return arm_id_; }
 
   /**
+   * Getter method for the arm_id which is used to distinguish between multiple
+   * instances of FrankaHW. Returns a copy of the arm_id string.
+   */
+  std::string getArmID() const noexcept;
+
+  /**
+   * Triggers a stop of the controlLoop. This interface is used to stop all
+   * robots together when one robot encounters an error.
+   */
+  void triggerError();
+
+  /**
+   * Getter for the error flag of the class.
+   *
+   * @return True in case of an error, false otherwise.
+   */
+  bool hasError() const noexcept;
+
+  /**
+   * Recovers the libfranka robot, resets the error flag and publishes the error state.
+   */
+  void resetError();
+
+  /**
+   * Returns whether the controller needs to be reset e.g. after error recovery.
+   *
+   * @return A copy of the controller_needs_reset flag.
+   */
+  bool controllerNeedsReset() const noexcept;
+
+  /**
    * Checks a command for NaN values.
    *
    * @param[in] command  The command to check.
@@ -255,6 +295,27 @@ class FrankaHW : public hardware_interface::SystemInterface {
   }
 
   using Callback = std::function<bool(const franka::RobotState&, franka::Duration)>;
+
+  /**
+   * Background loop that runs the libfranka control (run_function_) whenever a controller is
+   * active. While no controller is active (or after a control error), it keeps the state
+   * interfaces updated with robot_->readOnce(). This replaces the ROS 1
+   * franka_control_node main loop: in ros2_control the controller_manager update cycle
+   * only calls read()/write(), so the blocking libfranka control loop must run in its own
+   * thread.
+   */
+  void controlLoop();
+
+  /**
+   * Publishes the error state on the "has_error" topic.
+   */
+  void publishErrorState(bool error);
+
+  /**
+   * Sets up the libfranka parameter services and the error recovery action server on the
+   * hardware node.
+   */
+  void setupServicesAndActionServers();
 
   /**
    * Callback for the libfranka control loop. This method is designed to incorporate a
@@ -385,6 +446,14 @@ class FrankaHW : public hardware_interface::SystemInterface {
   franka::ControllerMode internal_controller_{franka::ControllerMode::kJointImpedance};
 
   std::function<void(franka::Robot&, Callback)> run_function_;
+
+  std::unique_ptr<std::thread> control_loop_thread_;
+  ServiceContainer services_;
+  rclcpp_action::Server<franka_msgs::action::ErrorRecovery>::SharedPtr recovery_action_server_;
+  std::atomic_bool has_error_{false};
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr has_error_pub_;
+  std::atomic_bool error_recovered_{false};
+  mutable std::atomic_bool controller_needs_reset_{false};
 
   rclcpp::Logger logger_{rclcpp::get_logger("FrankaHW")};
 };

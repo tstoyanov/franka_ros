@@ -54,6 +54,15 @@ FrankaHW::FrankaHW()
       velocity_cartesian_command_ros_({0.0, 0.0, 0.0, 0.0, 0.0, 0.0}),
       velocity_cartesian_command_libfranka_({0.0, 0.0, 0.0, 0.0, 0.0, 0.0}) {}
 
+FrankaHW::~FrankaHW() {
+  if (control_loop_thread_) {
+    if (control_loop_thread_->joinable()) {
+      control_loop_thread_->join();
+    }
+    control_loop_thread_.reset();
+  }
+}
+
 CallbackReturn FrankaHW::on_init(const hardware_interface::HardwareInfo& info) {
   if (hardware_interface::SystemInterface::on_init(info) != CallbackReturn::SUCCESS) {
     return CallbackReturn::ERROR;
@@ -69,6 +78,11 @@ CallbackReturn FrankaHW::on_init(const hardware_interface::HardwareInfo& info) {
     RCLCPP_ERROR(logger_, "FrankaHW: Failed to initialize libfranka robot. %s", error.what());
     return CallbackReturn::ERROR;
   }
+
+  has_error_pub_ = get_node()->create_publisher<std_msgs::msg::Bool>("has_error", 1);
+  publishErrorState(has_error_);
+  setupServicesAndActionServers();
+  control_loop_thread_ = std::make_unique<std::thread>(&FrankaHW::controlLoop, this);
 
   initialized_ = true;
   return CallbackReturn::SUCCESS;
@@ -316,6 +330,127 @@ hardware_interface::return_type FrankaHW::perform_command_mode_switch(
   return hardware_interface::return_type::OK;
 }
 
+void FrankaHW::controlLoop() {
+  rclcpp::Clock clock(RCL_SYSTEM_TIME);
+  while (rclcpp::ok()) {
+    // Wait until controller has been activated or error has been recovered
+    while (!controllerActive() || has_error_) {
+      if (!controllerActive()) {
+        RCLCPP_DEBUG_THROTTLE(logger_, *get_node()->get_clock(), 1000,
+                              "FrankaHW::%s::control_loop(): controller is not active.",
+                              arm_id_.c_str());
+      }
+      if (has_error_) {
+        RCLCPP_DEBUG_THROTTLE(logger_, *get_node()->get_clock(), 1000,
+                              "FrankaHW::%s::control_loop(): an error has occured.", arm_id_.c_str());
+      }
+
+      checkJointLimits();
+
+      {
+        std::lock_guard<std::mutex> ros_state_lock(ros_state_mutex_);
+        std::lock_guard<std::mutex> libfranka_state_lock(libfranka_state_mutex_);
+        robot_state_libfranka_ = robot_->readOnce();
+        robot_state_ros_ = robot_state_libfranka_;
+      }
+
+      if (!rclcpp::ok()) {
+        return;
+      }
+    }
+    RCLCPP_INFO(logger_, "FrankaHW::%s::control_loop(): controller is active.", arm_id_.c_str());
+
+    // Reset commands
+    {
+      std::lock_guard<std::mutex> command_lock(libfranka_cmd_mutex_);
+      effort_joint_command_libfranka_ = franka::Torques({0., 0., 0., 0., 0., 0., 0.});
+    }
+
+    try {
+      control();
+    } catch (const franka::ControlException& e) {
+      // Reflex could be caught and it needs to wait for automatic error recovery
+      RCLCPP_ERROR(logger_, "%s: %s", arm_id_.c_str(), e.what());
+      has_error_ = true;
+      publishErrorState(has_error_);
+    }
+  }
+}
+
+void FrankaHW::publishErrorState(const bool error) {
+  if (has_error_pub_) {
+    std_msgs::msg::Bool msg;
+    msg.data = static_cast<bool>(error);
+    has_error_pub_->publish(msg);
+  }
+}
+
+void FrankaHW::setupServicesAndActionServers() {
+  setupServices(*robot_, get_node(), services_);
+
+  auto handle_goal = [this](const rclcpp_action::GoalUUID&,
+                            std::shared_ptr<const franka_msgs::action::ErrorRecovery::Goal>) {
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+  };
+  auto handle_cancel = [](std::shared_ptr<rclcpp_action::ServerGoalHandle<
+                          franka_msgs::action::ErrorRecovery>>) {
+    return rclcpp_action::CancelResponse::ACCEPT;
+  };
+  auto handle_accepted = [this](std::shared_ptr<rclcpp_action::ServerGoalHandle<
+                                franka_msgs::action::ErrorRecovery>> goal_handle) {
+    std::thread([this, goal_handle]() {
+      auto result = std::make_shared<franka_msgs::action::ErrorRecovery::Result>();
+      try {
+        robot_->automaticErrorRecovery();
+        // error recovered => reset controller
+        if (has_error_) {
+          error_recovered_ = true;
+        }
+        has_error_ = false;
+        publishErrorState(has_error_);
+        goal_handle->succeed(result);
+      } catch (const franka::Exception& ex) {
+        RCLCPP_ERROR(logger_, "FrankaHW: error recovery failed: %s", ex.what());
+        goal_handle->abort(result);
+      }
+    }).detach();
+  };
+  recovery_action_server_ = rclcpp_action::create_server<franka_msgs::action::ErrorRecovery>(
+      get_node(), "error_recovery", handle_goal, handle_cancel, handle_accepted);
+}
+
+std::string FrankaHW::getArmID() const noexcept {
+  return arm_id_;
+}
+
+void FrankaHW::triggerError() {
+  has_error_ = true;
+  publishErrorState(has_error_);
+}
+
+bool FrankaHW::hasError() const noexcept {
+  return has_error_;
+}
+
+void FrankaHW::resetError() {
+  try {
+    robot_->automaticErrorRecovery();
+    if (has_error_) {
+      error_recovered_ = true;
+      controller_needs_reset_ = true;
+    }
+    has_error_ = false;
+    publishErrorState(has_error_);
+  } catch (const franka::Exception& ex) {
+    RCLCPP_ERROR(logger_, "FrankaHW: error recovery failed: %s", ex.what());
+    throw;
+  }
+}
+
+bool FrankaHW::controllerNeedsReset() const noexcept {
+  return controller_needs_reset_.exchange(false);
+}
+
 void FrankaHW::update(const franka::RobotState& robot_state) {
   std::lock_guard<std::mutex> ros_lock(ros_state_mutex_);
   robot_state_ros_ = robot_state;
@@ -382,11 +517,15 @@ void FrankaHW::checkJointLimits() {
       continue;
     }
     double lower = 0.0, upper = 0.0;
-    for (const auto& param : joint_info->parameters) {
-      if (param.first == "lower") {
-        lower = std::stod(param.second);
-      } else if (param.first == "upper") {
-        upper = std::stod(param.second);
+    for (const auto& command_interface : joint_info->command_interfaces) {
+      if (command_interface.name == hardware_interface::HW_IF_POSITION) {
+        if (!command_interface.min.empty()) {
+          lower = std::stod(command_interface.min);
+        }
+        if (!command_interface.max.empty()) {
+          upper = std::stod(command_interface.max);
+        }
+        break;
       }
     }
     double joint_position = 0.0;

@@ -174,3 +174,52 @@ libfranka stays pinned at `find_package(Franka 0.7.0 REQUIRED)` in every C++ pac
 `jazzy-ci.yaml` is green on the `jazzy` branch (run 41203935559): **Build and test (colcon)**
 (8 packages built, `franka_hw_test` gtest suite passing) and **Lint (ament linters)** both
 succeed in `tstoyanov/jazzy_libfranka:latest`.
+
+## 13. Code review findings (ros1_control -> ros2_control gotchas) and fixes
+
+A deep review of the port against ros2_control (jazzy) semantics found the following
+issues, all fixed on the `jazzy` branch:
+
+1. **No `<ros2_control>` tag in the URDF** (blocking): `FrankaHW::initParameters` reads
+   `info.hardware_parameters`, which ros2_control only populates from the URDF
+   `<ros2_control><hardware><param>` tags — not from a YAML file like ROS 1's
+   `franka_control_node.yaml`. The `ros2_control_node` could therefore never load the
+   plugin. Fixed by adding `franka_description/robots/panda.ros2_control.xacro`
+   (hardware params + 7 joints + one gpio with the franka state/model and cartesian
+   command interfaces) and including it from `panda_arm_hand.urdf.xacro` and
+   `dual_panda_example.urdf.xacro`. A new gtest (`franka_hw_urdf_test`) parses the
+   generated URDF and asserts the declared interfaces exactly match the exported ones
+   (what `resource_manager::validate_storage` checks at startup).
+
+2. **`state_interfaces_` used in `on_configure`** (crash): in ros2_control the loaned
+   state/command interfaces are assigned by `controller_manager`'s
+   `activate_controllers` — after `configure()` — so `state_interfaces_` is **empty**
+   during `on_configure`. All example controllers dereferenced it there (decoding the
+   robot-state pointer from element 0). Fixed by moving every state-interface access
+   (model-handle creation, start-position checks, initial poses) into `on_activate`.
+
+3. **Commands never reached the robot on `franka_hw/FrankaHW`** (blocking): the
+   background libfranka control loop only existed in `FrankaCombinableHW`. The plain
+   `FrankaHW` plugin exported command interfaces and `write()` copied them, but nothing
+   ever called `run_function_`, so `robot.control(...)` never started. Fixed by moving
+   the control-loop thread, error state/`has_error` topic, services and the
+   error-recovery action server into `FrankaHW` (shared by both plugins).
+   `FrankaCombinableHW` keeps only its torque-only `setRunFunction`.
+
+4. **Out-of-bounds `command_interfaces_` writes** (memory corruption):
+   `JointImpedanceExampleController` claimed only the 7 joint-effort command interfaces
+   but called `setCartesianPoseCommand(command_interfaces_, ...)`, which writes indices
+   0..17 of a 7-element vector. Fixed by claiming the 18 cartesian pose command
+   interfaces as well and writing them at offset 7
+   (`setCartesianPoseOffsetCommand`); a regression test asserts the claim list.
+
+5. **Joint limits in `checkJointLimits` read from the wrong place**: the ros2_control
+   URDF parser stores `<command_interface name="position"><param name="min">` in
+   `InterfaceInfo::min/max`, not `ComponentInfo::parameters["lower"/"upper"]` (that was
+   the ROS 1 `joint_limits_interface` URDF layout). Fixed to read `min`/`max` from the
+   position command interface.
+
+6. **CI**: `rosdep install --from-paths src` pointed at a nonexistent `src/` directory
+   (the repo root holds the packages) — fixed to `--from-paths .`; added gtest coverage
+   for the URDF/ros2_control integration and the example controllers to the CI
+   `colcon test` run.

@@ -44,11 +44,6 @@ CallbackReturn CartesianImpedanceModController::on_configure(
     return CallbackReturn::ERROR;
   }
 
-  auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
-  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
-  model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
-                                                                  *robot_state);
-
   sub_equilibrium_pose_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
       "/equilibrium_pose", 20,
       std::bind(&CartesianImpedanceModController::equilibriumPoseCallback, this,
@@ -75,6 +70,13 @@ CallbackReturn CartesianImpedanceModController::on_configure(
 
 CallbackReturn CartesianImpedanceModController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
+  // The state interfaces (and thus the robot state pointer) are only loaned to the
+  // controller at activation time, so the model handle is created here.
+  auto* robot_state = decodePointer<franka::RobotState>(state_interfaces_[0].get_value());
+  auto* model = decodePointer<franka::Model>(state_interfaces_[1].get_value());
+  model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
+                                                                  *robot_state);
+
   // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
   // to initial configuration
   auto& initial_state = robotStateFromInterface(state_interfaces_[0]);

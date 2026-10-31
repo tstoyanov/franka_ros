@@ -43,6 +43,12 @@ CallbackReturn JointPositionExampleController::on_configure(
     return CallbackReturn::ERROR;
   }
 
+  return CallbackReturn::SUCCESS;
+}
+
+CallbackReturn JointPositionExampleController::on_activate(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  // The state interfaces are only loaned to the controller at activation time.
   std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
   for (size_t i = 0; i < q_start.size(); i++) {
     if (std::abs(state_interfaces_[i].get_value() - q_start[i]) > 0.1) {
@@ -54,12 +60,6 @@ CallbackReturn JointPositionExampleController::on_configure(
       return CallbackReturn::ERROR;
     }
   }
-
-  return CallbackReturn::SUCCESS;
-}
-
-CallbackReturn JointPositionExampleController::on_activate(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
   for (size_t i = 0; i < 7; ++i) {
     initial_pose_[i] = state_interfaces_[i].get_value();
   }

@@ -39,6 +39,12 @@ CallbackReturn JointVelocityExampleController::on_configure(
                  "JointVelocityExampleController: Invalid or no joint_names parameters provided!");
     return CallbackReturn::ERROR;
   }
+  return CallbackReturn::SUCCESS;
+}
+
+CallbackReturn JointVelocityExampleController::on_activate(
+    const rclcpp_lifecycle::State& /*previous_state*/) {
+  // The state interfaces are only loaned to the controller at activation time.
   const auto& state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> q_start{{0, -M_PI_4, 0, -3 * M_PI_4, 0, M_PI_2, M_PI_4}};
   for (size_t i = 0; i < q_start.size(); i++) {
@@ -49,11 +55,6 @@ CallbackReturn JointVelocityExampleController::on_configure(
       return CallbackReturn::ERROR;
     }
   }
-  return CallbackReturn::SUCCESS;
-}
-
-CallbackReturn JointVelocityExampleController::on_activate(
-    const rclcpp_lifecycle::State& /*previous_state*/) {
   elapsed_time_ = rclcpp::Duration(0, 0);
   return CallbackReturn::SUCCESS;
 }

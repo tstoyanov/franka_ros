@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    ros2_control system component for a single Panda arm driven by
+    franka_hw/FrankaCombinableHW (libfranka 0.7.0).
+
+    The hardware parameters (robot_ip, arm_id, rate_limiting, ...) are read by
+    FrankaHW::initParameters from hardware_interface::HardwareInfo::hardware_parameters,
+    which ros2_control populates from the <param> tags below. This is the ROS 2
+    replacement for the ROS 1 franka_control_node.yaml parameter file.
+
+    The franka-specific interfaces are exported by FrankaHW under the "arm_id" prefix
+    (see FrankaHW::export_state_interfaces / export_command_interfaces), so they are
+    declared here as GPIO interfaces of a component named after the arm_id:
+      - state:  franka_hw/FrankaStateInterface (franka::RobotState pointer)
+                franka_hw/FrankaModelInterface (franka::Model pointer)
+      - command: franka_hw/FrankaPoseCartesianInterface/... (16 pose + 2 elbow values)
+                 franka_hw/FrankaVelocityCartesianInterface/... (6 twist + 2 elbow values)
+  -->
+
+  <!-- One Panda arm joint with the standard ros2_control joint interfaces plus the
+       min/max parameters FrankaHW::checkJointLimits reads from the joint parameters. -->
+  <xacro:macro name="panda_joint_interfaces"
+               params="joint_name lower upper effort velocity">
+    <joint name="${joint_name}">
+      <command_interface name="position">
+        <param name="min">${lower}</param>
+        <param name="max">${upper}</param>
+      </command_interface>
+      <command_interface name="velocity">
+        <param name="min">-${velocity}</param>
+        <param name="max">${velocity}</param>
+      </command_interface>
+      <command_interface name="effort">
+        <param name="min">-${effort}</param>
+        <param name="max">${effort}</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="panda_ros2_control"
+               params="arm_id:='panda' robot_ip:='' use_fake_hardware:=false">
+    <ros2_control name="${arm_id}_FrankaHW" type="system">
+      <hardware>
+        <xacro:if value="${use_fake_hardware}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="mock_sensor_commands">true</param>
+        </xacro:if>
+        <xacro:unless value="${use_fake_hardware}">
+          <plugin>franka_hw/FrankaCombinableHW</plugin>
+          <param name="arm_id">${arm_id}</param>
+          <param name="robot_ip">${robot_ip}</param>
+          <param name="rate_limiting">true</param>
+          <param name="cutoff_frequency">1000.0</param>
+          <param name="internal_controller">joint_impedance</param>
+          <param name="realtime_config">enforce</param>
+          <param name="joint_limit_warning_threshold">0.1</param>
+        </xacro:unless>
+      </hardware>
+
+      <xacro:panda_joint_interfaces joint_name="${arm_id}_joint1" lower="-2.8973" upper="2.8973" effort="87" velocity="2.1750"/>
+      <xacro:panda_joint_interfaces joint_name="${arm_id}_joint2" lower="-1.7628" upper="1.7628" effort="87" velocity="2.1750"/>
+      <xacro:panda_joint_interfaces joint_name="${arm_id}_joint3" lower="-2.8973" upper="2.8973" effort="87" velocity="2.1750"/>
+      <xacro:panda_joint_interfaces joint_name="${arm_id}_joint4" lower="-3.0718" upper="-0.0698" effort="87" velocity="2.1750"/>
+      <xacro:panda_joint_interfaces joint_name="${arm_id}_joint5" lower="-2.8973" upper="2.8973" effort="12" velocity="2.6100"/>
+      <xacro:panda_joint_interfaces joint_name="${arm_id}_joint6" lower="-0.0175" upper="3.7525" effort="12" velocity="2.6100"/>
+      <xacro:panda_joint_interfaces joint_name="${arm_id}_joint7" lower="-2.8973" upper="2.8973" effort="12" velocity="2.6100"/>
+
+      <!-- All franka-specific interfaces share the arm_id prefix used by FrankaHW. -->
+      <gpio name="${arm_id}">
+        <state_interface name="franka_hw/FrankaStateInterface"/>
+        <state_interface name="franka_hw/FrankaModelInterface"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_00"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_01"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_02"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_03"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_04"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_05"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_06"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_07"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_08"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_09"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_10"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_11"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_12"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_13"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_14"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/O_T_EE_15"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/elbow_0"/>
+        <command_interface name="franka_hw/FrankaPoseCartesianInterface/elbow_1"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/O_dP_EE_0"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/O_dP_EE_1"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/O_dP_EE_2"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/O_dP_EE_3"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/O_dP_EE_4"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/O_dP_EE_5"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/elbow_0"/>
+        <command_interface name="franka_hw/FrankaVelocityCartesianInterface/elbow_1"/>
+      </gpio>
+    </ros2_control>
+  </xacro:macro>
+</robot>

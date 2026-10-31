@@ -76,4 +76,8 @@ ament_export_libraries(franka_example_controllers_lib)
 ament_export_dependencies(controller_interface franka_hw geometry_msgs pluginlib rclcpp realtime_tools tf2 tf2_eigen tf2_geometry_msgs tf2_ros rosidl_default_runtime)
 ament_export_targets(export_franka_example_controllers HAS_LIBRARY_TARGET)
 
+if(BUILD_TESTING)
+  add_subdirectory(test)
+endif()
+
 ament_package()
