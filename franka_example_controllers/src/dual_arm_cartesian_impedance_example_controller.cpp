@@ -315,7 +315,8 @@ void DualArmCartesianImpedanceExampleController::targetPoseCallback(
     std::lock_guard<std::mutex> lock(target_mutex_);
     // Set target for the left robot.
     auto& left_arm_data = arms_data_.at(left_arm_id_);
-    Eigen::Affine3d Ol_T_C = tf2::fromMsg(msg->pose);
+    Eigen::Affine3d Ol_T_C;
+    tf2::fromMsg(msg->pose, Ol_T_C);
     Eigen::Affine3d Ol_T_EEl_d =      // NOLINT (readability-identifier-naming)
         Ol_T_C * EEl_T_C_.inverse();  // NOLINT (readability-identifier-naming)
     left_arm_data.position_d_target_ = Ol_T_EEl_d.translation();
