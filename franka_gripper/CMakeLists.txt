@@ -22,21 +22,21 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES actionlib_msgs
 )
 
-add_library(franka_gripper SHARED src/franka_gripper.cpp)
-target_link_libraries(franka_gripper Franka::Franka)
+add_library(franka_gripper_lib SHARED src/franka_gripper.cpp)
+target_link_libraries(franka_gripper_lib Franka::Franka)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(franka_gripper ${cpp_typesupport_target})
-target_include_directories(franka_gripper PUBLIC
+target_link_libraries(franka_gripper_lib ${cpp_typesupport_target})
+target_include_directories(franka_gripper_lib PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-ament_target_dependencies(franka_gripper rclcpp rclcpp_action control_msgs)
+ament_target_dependencies(franka_gripper_lib rclcpp rclcpp_action control_msgs)
 
 add_executable(franka_gripper_node src/franka_gripper_node.cpp)
-target_link_libraries(franka_gripper_node franka_gripper ${cpp_typesupport_target})
+target_link_libraries(franka_gripper_node franka_gripper_lib ${cpp_typesupport_target})
 ament_target_dependencies(franka_gripper_node rclcpp rclcpp_action sensor_msgs control_msgs)
 
-install(TARGETS franka_gripper franka_gripper_node
+install(TARGETS franka_gripper_lib franka_gripper_node
   EXPORT export_franka_gripper
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -46,7 +46,7 @@ install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 ament_export_include_directories(include)
-ament_export_libraries(franka_gripper)
+ament_export_libraries(franka_gripper_lib)
 ament_export_dependencies(rclcpp rclcpp_action control_msgs rosidl_default_runtime)
 ament_export_targets(export_franka_gripper HAS_LIBRARY_TARGET)
 
