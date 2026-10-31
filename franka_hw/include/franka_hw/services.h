@@ -37,7 +37,7 @@ typename rclcpp::Service<T>::SharedPtr advertiseService(
         handler) {
   return node->create_service<T>(
       name,
-      [name, handler](std::shared_ptr<typename T::Request> request,
+      [node, name, handler](std::shared_ptr<typename T::Request> request,
                       std::shared_ptr<typename T::Response> response) {
         try {
           handler(request, response);

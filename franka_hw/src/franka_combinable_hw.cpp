@@ -101,7 +101,7 @@ void FrankaCombinableHW::setupServicesAndActionServers(rclcpp::Node::SharedPtr n
         publishErrorState(has_error_);
         goal_handle->succeed(result);
       } catch (const franka::Exception& ex) {
-        result->error = ex.what();
+        RCLCPP_ERROR(rclcpp::get_logger("FrankaCombinableHW"), "error recovery failed: %s", ex.what());
         goal_handle->abort(result);
       }
     }).detach();
@@ -169,9 +169,7 @@ void FrankaCombinableHW::resetError() {
 }
 
 bool FrankaCombinableHW::controllerNeedsReset() const noexcept {
-  bool needs_reset = controller_needs_reset_;
-  controller_needs_reset_ = false;
-  return needs_reset;
+  return controller_needs_reset_.exchange(false);
 }
 
 bool FrankaCombinableHW::setRunFunction(const ControlMode& requested_control_mode,

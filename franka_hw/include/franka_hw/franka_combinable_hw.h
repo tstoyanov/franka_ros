@@ -34,6 +34,8 @@ class FrankaCombinableHW : public FrankaHW {
    */
   FrankaCombinableHW();
 
+  CallbackReturn on_init(const hardware_interface::HardwareInfo& info) override;
+
   /**
    * Runs the currently active controller in a realtime loop. If no controller is active, the
    * function immediately exits.
