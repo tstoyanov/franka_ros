@@ -174,7 +174,7 @@ controller_interface::InterfaceConfiguration
 FrankaStateController::state_interface_configuration() const {
   controller_interface::InterfaceConfiguration config;
   config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
-  config.names.push_back(arm_id_ + "/" + franka_hw::kFrankaStateInterface + "/robot_state");
+  config.names.push_back(arm_id_ + "/" + franka_hw::kFrankaStateInterface);
   return config;
 }
 

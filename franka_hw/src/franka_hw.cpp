@@ -202,11 +202,11 @@ std::vector<hardware_interface::StateInterface> FrankaHW::export_state_interface
         joint_names_[i], hardware_interface::HW_IF_EFFORT, &robot_state_ros_.tau_J[i]));
   }
   state_interfaces.emplace_back(hardware_interface::StateInterface(
-      arm_id_, kFrankaStateInterface, "robot_state",
+      arm_id_, kFrankaStateInterface,
       reinterpret_cast<double*>(&robot_state_ros_)));
   if (model_) {
     state_interfaces.emplace_back(hardware_interface::StateInterface(
-        arm_id_, kFrankaModelInterface, "robot_model", reinterpret_cast<double*>(model_.get())));
+        arm_id_, kFrankaModelInterface, reinterpret_cast<double*>(model_.get())));
   }
   return state_interfaces;
 }
@@ -371,13 +371,23 @@ void FrankaHW::reset() {
 void FrankaHW::checkJointLimits() {
   std::string joint_limits_warning;
   for (const auto& k_joint_name : joint_names_) {
-    auto it = info_.joints_map_.find(k_joint_name);
-    if (it == info_.joints_map_.end() || !it->second.joint) {
+    const hardware_interface::ComponentInfo* joint_info = nullptr;
+    for (const auto& joint : info_.joints) {
+      if (joint.name == k_joint_name) {
+        joint_info = &joint;
+        break;
+      }
+    }
+    if (joint_info == nullptr) {
       continue;
     }
-    const auto& limits = it->second.joint->limits;
-    if (!limits) {
-      continue;
+    double lower = 0.0, upper = 0.0;
+    for (const auto& param : joint_info->parameters) {
+      if (param.first == "lower") {
+        lower = std::stod(param.second);
+      } else if (param.first == "upper") {
+        upper = std::stod(param.second);
+      }
     }
     double joint_position = 0.0;
     {
@@ -388,13 +398,12 @@ void FrankaHW::checkJointLimits() {
         }
       }
     }
-    double dist = std::min(std::fabs(joint_position - limits->lower),
-                           std::fabs(joint_position - limits->upper));
+    double dist = std::min(std::fabs(joint_position - lower), std::fabs(joint_position - upper));
     if (dist < joint_limit_warning_threshold_) {
       joint_limits_warning +=
           "\n\t" + k_joint_name + ": " + toStringWithPrecision(dist * 180 / M_PI) +
-          " degrees to joint limits (limits: [" + toStringWithPrecision(limits->lower) + ", " +
-          toStringWithPrecision(limits->upper) + "]" +
+          " degrees to joint limits (limits: [" + toStringWithPrecision(lower) + ", " +
+          toStringWithPrecision(upper) + "]" +
           " q: " + toStringWithPrecision(joint_position) + ") ";
     }
   }

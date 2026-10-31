@@ -16,10 +16,10 @@ namespace franka_example_controllers {
 
 // Interface names exported by franka_hw::FrankaHW.
 inline std::string frankaStateInterface(const std::string& arm_id) {
-  return arm_id + "/" + franka_hw::kFrankaStateInterface + "/robot_state";
+  return arm_id + "/" + franka_hw::kFrankaStateInterface;
 }
 inline std::string frankaModelInterface(const std::string& arm_id) {
-  return arm_id + "/" + franka_hw::kFrankaModelInterface + "/robot_model";
+  return arm_id + "/" + franka_hw::kFrankaModelInterface;
 }
 inline std::vector<std::string> cartesianPoseCommandInterfaces(const std::string& arm_id) {
   static const std::array<std::string, 16> pose_names = {
