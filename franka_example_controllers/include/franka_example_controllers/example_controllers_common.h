@@ -68,7 +68,7 @@ inline T* decodePointer(double value) {
 }
 
 // Reads the franka::RobotState pointer exported on the franka state interface.
-inline const franka::RobotState& robotStateFromInterface(
+inline franka::RobotState& robotStateFromInterface(
     const hardware_interface::LoanedStateInterface& state_interface) {
   return *decodePointer<franka::RobotState>(state_interface.get_value());
 }

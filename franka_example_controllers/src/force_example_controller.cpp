@@ -78,7 +78,7 @@ CallbackReturn ForceExampleController::on_configure(
 
 CallbackReturn ForceExampleController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
-  const auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
+  auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> gravity_array = model_handle_->getGravity();
   Eigen::Map<Eigen::Matrix<double, 7, 1>> tau_measured(robot_state.tau_J.data());
   Eigen::Map<Eigen::Matrix<double, 7, 1>> gravity(gravity_array.data());
@@ -90,7 +90,7 @@ CallbackReturn ForceExampleController::on_activate(
 
 controller_interface::return_type ForceExampleController::update(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& period) {
-  const auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
+  auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 42> jacobian_array =
       model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
   std::array<double, 7> gravity_array = model_handle_->getGravity();

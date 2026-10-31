@@ -120,7 +120,7 @@ CallbackReturn CartesianImpedanceExampleController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
   // to initial configuration
-  const auto& initial_state = robotStateFromInterface(state_interfaces_[0]);
+  auto& initial_state = robotStateFromInterface(state_interfaces_[0]);
   // get jacobian
   std::array<double, 42> jacobian_array =
       model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
@@ -142,7 +142,7 @@ CallbackReturn CartesianImpedanceExampleController::on_activate(
 controller_interface::return_type CartesianImpedanceExampleController::update(
     const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
   // get state variables
-  const auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
+  auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> coriolis_array = model_handle_->getCoriolis();
   std::array<double, 42> jacobian_array =
       model_handle_->getZeroJacobian(franka::Frame::kEndEffector);

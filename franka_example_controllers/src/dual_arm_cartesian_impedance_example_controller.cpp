@@ -153,7 +153,7 @@ CallbackReturn DualArmCartesianImpedanceExampleController::on_configure(
 void DualArmCartesianImpedanceExampleController::startingArm(FrankaDataContainer& arm_data) {
   // compute initial velocity with jacobian and set x_attractor and q_d_nullspace
   // to initial configuration
-  const auto& initial_state = *arm_data.robot_state_;
+  auto& initial_state = *arm_data.robot_state_;
   // get jacobian
   std::array<double, 42> jacobian_array =
       arm_data.model_handle_->getZeroJacobian(franka::Frame::kEndEffector);
@@ -177,8 +177,8 @@ CallbackReturn DualArmCartesianImpedanceExampleController::on_activate(
   for (auto& arm_data : arms_data_) {
     startingArm(arm_data.second);
   }
-  const auto& robot_state_right = *arms_data_.at(right_arm_id_).robot_state_;
-  const auto& robot_state_left = *arms_data_.at(left_arm_id_).robot_state_;
+  auto& robot_state_right = *arms_data_.at(right_arm_id_).robot_state_;
+  auto& robot_state_left = *arms_data_.at(left_arm_id_).robot_state_;
   Eigen::Affine3d Ol_T_EEl(Eigen::Matrix4d::Map(  // NOLINT (readability-identifier-naming)
       robot_state_left.O_T_EE.data()));           // NOLINT (readability-identifier-naming)
   Eigen::Affine3d Or_T_EEr(Eigen::Matrix4d::Map(  // NOLINT (readability-identifier-naming)
@@ -205,7 +205,7 @@ controller_interface::return_type DualArmCartesianImpedanceExampleController::up
 
 void DualArmCartesianImpedanceExampleController::updateArm(FrankaDataContainer& arm_data) {
   // get state variables
-  const auto& robot_state = *arm_data.robot_state_;
+  auto& robot_state = *arm_data.robot_state_;
   std::array<double, 49> inertia_array = arm_data.model_handle_->getMass();
   std::array<double, 7> coriolis_array = arm_data.model_handle_->getCoriolis();
   std::array<double, 42> jacobian_array =
@@ -351,7 +351,7 @@ void DualArmCartesianImpedanceExampleController::targetPoseCallback(
 
 void DualArmCartesianImpedanceExampleController::publishCenteringPose() {
   if (center_frame_pub_->trylock()) {
-    const auto& robot_state_left = *arms_data_.at(left_arm_id_).robot_state_;
+    auto& robot_state_left = *arms_data_.at(left_arm_id_).robot_state_;
     Eigen::Affine3d Ol_T_EEl(Eigen::Matrix4d::Map(  // NOLINT (readability-identifier-naming)
         robot_state_left.O_T_EE.data()));           // NOLINT (readability-identifier-naming)
     Eigen::Affine3d Ol_T_C = Ol_T_EEl * EEl_T_C_;   // NOLINT (readability-identifier-naming)

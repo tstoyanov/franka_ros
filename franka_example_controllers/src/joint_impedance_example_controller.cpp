@@ -85,7 +85,7 @@ CallbackReturn JointImpedanceExampleController::on_configure(
 
 CallbackReturn JointImpedanceExampleController::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
-  const auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
+  auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   initial_pose_ = robot_state.O_T_EE_d;
   return CallbackReturn::SUCCESS;
 }
@@ -110,7 +110,7 @@ controller_interface::return_type JointImpedanceExampleController::update(
   pose_desired[14] += delta_z;
   setCartesianPoseCommand(command_interfaces_, pose_desired);
 
-  const auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
+  auto& robot_state = robotStateFromInterface(state_interfaces_[0]);
   std::array<double, 7> coriolis = model_handle_->getCoriolis();
   std::array<double, 7> gravity = model_handle_->getGravity();
 
