@@ -1,6 +1,5 @@
 // Copyright (c) 2024 Franka Emika GmbH
 // Use of this source code is governed by the Apache-2.0 license, see LICENSE
-#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -27,6 +26,15 @@ std::vector<std::string> jointNames() {
           kArmId + "_joint5", kArmId + "_joint6", kArmId + "_joint7"};
 }
 
+bool initController(franka_example_controllers::JointImpedanceExampleController& controller,
+                    const std::string& name) {
+  controller_interface::ControllerInterfaceParams params;
+  params.controller_name = name;
+  params.update_rate = 100;
+  params.controller_manager_update_rate = 100;
+  return controller.init(params) == controller_interface::return_type::OK;
+}
+
 void declareControllerParameters(franka_example_controllers::JointImpedanceExampleController&
                                     controller) {
   auto node = controller.get_node();
@@ -36,15 +44,6 @@ void declareControllerParameters(franka_example_controllers::JointImpedanceExamp
                         rclcpp::Parameter("d_gains", std::vector<double>(7, 0.1)),
                         rclcpp::Parameter("publish_rate", 30.0),
                         rclcpp::Parameter("coriolis_factor", 1.0)});
-}
-
-bool initController(franka_example_controllers::JointImpedanceExampleController& controller,
-                    const std::string& name) {
-  controller_interface::ControllerInterfaceParams params;
-  params.controller_name = name;
-  params.update_rate = 100;
-  params.controller_manager_update_rate = 100;
-  return controller.init(params) == controller_interface::return_type::OK;
 }
 
 }  // namespace
@@ -77,8 +76,6 @@ TEST(FrankaExampleControllersTest, JointImpedanceClaimsTorqueAndCartesianPoseInt
   EXPECT_EQ(state_config.names.size(), 2u);
   EXPECT_EQ(state_config.names[0], franka_example_controllers::frankaStateInterface(kArmId));
   EXPECT_EQ(state_config.names[1], franka_example_controllers::frankaModelInterface(kArmId));
-
-  rclcpp::shutdown();
 }
 
 // on_configure must not touch the state interfaces: they are only loaned to the
@@ -91,20 +88,20 @@ TEST(FrankaExampleControllersTest, ConfigureSucceedsWithoutStateInterfaces) {
 
   // No interfaces assigned here: state_interfaces_ is empty at configure time.
   ASSERT_EQ(controller.configure().id(), lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE);
-  rclcpp::shutdown();
 }
 
-// The franka state interface stores the franka::RobotState pointer in the double
-// value (as FrankaHW::export_state_interfaces does). Verify the roundtrip through
-// a LoanedStateInterface returns the same robot state.
+// The franka state interface transports the franka::RobotState pointer in the double
+// value (as FrankaHW::export_state_interfaces does with the boxed pointer storage).
+// Verify the roundtrip through a LoanedStateInterface returns the same robot state.
 TEST(FrankaExampleControllersTest, RobotStatePointerRoundtrip) {
   franka::RobotState robot_state{};
   robot_state.q = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7};
+  franka::RobotState* state_box_ptr = &robot_state;
 
   auto state_interface = std::make_shared<hardware_interface::StateInterface>(
       hardware_interface::StateInterface(
           kArmId, franka_hw::kFrankaStateInterface,
-          reinterpret_cast<double*>(&robot_state)));
+          reinterpret_cast<double*>(&state_box_ptr)));
   hardware_interface::LoanedStateInterface loaned(state_interface);
 
   auto& decoded = franka_example_controllers::robotStateFromInterface(loaned);

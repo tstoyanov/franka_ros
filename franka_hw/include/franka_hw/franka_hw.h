@@ -414,6 +414,11 @@ class FrankaHW : public hardware_interface::SystemInterface {
   franka::RobotState robot_state_libfranka_{};
   franka::RobotState robot_state_ros_{};
 
+  // Boxed pointers whose bits are transported on the franka state/model interfaces
+  // (see export_state_interfaces). They must always alias robot_state_ros_ / model_.
+  franka::RobotState* state_box_ptr_{nullptr};
+  franka::Model* model_box_ptr_{nullptr};
+
   std::mutex libfranka_cmd_mutex_;
   franka::JointPositions position_joint_command_libfranka_;
   franka::JointVelocities velocity_joint_command_libfranka_;

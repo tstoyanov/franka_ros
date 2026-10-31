@@ -215,12 +215,18 @@ std::vector<hardware_interface::StateInterface> FrankaHW::export_state_interface
     state_interfaces.emplace_back(hardware_interface::StateInterface(
         joint_names_[i], hardware_interface::HW_IF_EFFORT, &robot_state_ros_.tau_J[i]));
   }
+  // The franka state/model interfaces transport the address of the robot state / model
+  // in the double value. The pointer must live in its own storage whose first 8 bytes
+  // ARE the pointer: pointing the interface at the franka::RobotState itself would make
+  // get_value() return the first bytes of O_T_EE instead.
+  state_box_ptr_ = &robot_state_ros_;
   state_interfaces.emplace_back(hardware_interface::StateInterface(
       arm_id_, kFrankaStateInterface,
-      reinterpret_cast<double*>(&robot_state_ros_)));
+      reinterpret_cast<double*>(&state_box_ptr_)));
   if (model_) {
+    model_box_ptr_ = model_.get();
     state_interfaces.emplace_back(hardware_interface::StateInterface(
-        arm_id_, kFrankaModelInterface, reinterpret_cast<double*>(model_.get())));
+        arm_id_, kFrankaModelInterface, reinterpret_cast<double*>(&model_box_ptr_)));
   }
   return state_interfaces;
 }

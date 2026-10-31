@@ -219,7 +219,16 @@ issues, all fixed on the `jazzy` branch:
    the ROS 1 `joint_limits_interface` URDF layout). Fixed to read `min`/`max` from the
    position command interface.
 
-6. **CI**: `rosdep install --from-paths src` pointed at a nonexistent `src/` directory
+6. **State/model interfaces carried garbage instead of the pointer** (crash): the
+   franka state/model interfaces must transport the *address* of the
+   `franka::RobotState` / `franka::Model` in the double value, but the port pointed the
+   interface at the objects themselves, so `get_value()` returned the first 8 bytes of
+   `O_T_EE` and the controllers' `decodePointer` yielded a garbage pointer. Fixed with
+   dedicated box-pointer storage (`state_box_ptr_` / `model_box_ptr_` aliasing
+   `robot_state_ros_` / `model_`), exactly like upstream `franka_ros2`'s
+   `robot_state_box_ptr_`. The `RobotStatePointerRoundtrip` gtest covers the roundtrip.
+
+7. **CI**: `rosdep install --from-paths src` pointed at a nonexistent `src/` directory
    (the repo root holds the packages) — fixed to `--from-paths .`; added gtest coverage
    for the URDF/ros2_control integration and the example controllers to the CI
    `colcon test` run.

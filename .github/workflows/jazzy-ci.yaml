@@ -29,7 +29,8 @@ jobs:
             python3-colcon-common-extensions \
             python3-rosdep \
             build-essential \
-            cmake
+            cmake \
+            ros-jazzy-xacro
           rm -rf /var/lib/apt/lists/*
 
       - name: Install ROS dependencies (rosdep)
@@ -80,7 +81,8 @@ jobs:
             ros-${{ env.ROS_DISTRO }}-ament-cmake-clang-format \
             ros-${{ env.ROS_DISTRO }}-ament-cmake-cppcheck \
             ros-${{ env.ROS_DISTRO }}-ament-cmake-uncrustify \
-            ros-${{ env.ROS_DISTRO }}-ament-cmake-xmllint
+            ros-${{ env.ROS_DISTRO }}-ament-cmake-xmllint \
+            ros-${{ env.ROS_DISTRO }}-xacro
           rm -rf /var/lib/apt/lists/*
 
       - name: Build for linters
