@@ -1,6 +1,6 @@
 name: jazzy-ci
 
-on:
+"on":
   push:
     branches: [jazzy]
   pull_request:
