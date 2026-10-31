@@ -58,7 +58,7 @@ TEST(FrankaHWTests, ExportsInterfaces) {
 
   bool has_robot_state = false;
   for (const auto& si : state_interfaces) {
-    if (si.get_name() == arm_id &&
+    if (si.get_prefix_name() == arm_id &&
         si.get_interface_name() == kFrankaStateInterface) {
       has_robot_state = true;
     }
