@@ -121,7 +121,7 @@ class DualArmCartesianImpedanceExampleController : public controller_interface::
   Eigen::Affine3d EEl_T_C_;
 
   ///< Publisher for the centering tracking frame of the coordinated motion.
-  realtime_tools::RealtimePublisher<geometry_msgs::msg::PoseStamped> center_frame_pub_;
+  std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::PoseStamped>> center_frame_pub_;
   ///< Rate to trigger publishing the current pose of the centering frame.
   franka_hw::TriggerRate publish_rate_{30.0};
 

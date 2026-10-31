@@ -48,11 +48,15 @@ class FrankaStateController : public controller_interface::ControllerInterface {
 
   std::string arm_id_;
 
-  realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage> publisher_transforms_;
-  realtime_tools::RealtimePublisher<franka_msgs::msg::FrankaState> publisher_franka_states_;
-  realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState> publisher_joint_states_;
-  realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState> publisher_joint_states_desired_;
-  realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped> publisher_external_wrench_;
+  std::shared_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>> publisher_transforms_;
+  std::shared_ptr<realtime_tools::RealtimePublisher<franka_msgs::msg::FrankaState>>
+      publisher_franka_states_;
+  std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>
+      publisher_joint_states_;
+  std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>
+      publisher_joint_states_desired_;
+  std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped>>
+      publisher_external_wrench_;
   franka_hw::TriggerRate trigger_publish_;
   franka::RobotState robot_state_;
   uint64_t sequence_number_ = 0;

@@ -55,7 +55,7 @@ class JointImpedanceExampleController : public controller_interface::ControllerI
 
   franka_hw::TriggerRate rate_trigger_{1.0};
   std::array<double, 7> last_tau_d_{};
-  realtime_tools::RealtimePublisher<franka_example_controllers::msg::JointTorqueComparison>
+  std::shared_ptr<realtime_tools::RealtimePublisher<franka_example_controllers::msg::JointTorqueComparison>>
       torques_publisher_;
 };
 

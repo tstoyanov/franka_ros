@@ -75,7 +75,10 @@ CallbackReturn JointImpedanceExampleController::on_configure(
   model_handle_ = std::make_unique<franka_hw::FrankaModelHandle>(arm_id_ + "_model", *model,
                                                                   *robot_state);
 
-  torques_publisher_.init(node, "torque_comparison", 1);
+    torques_publisher_ =
+      std::make_shared<realtime_tools::RealtimePublisher<franka_example_controllers::msg::JointTorqueComparison>>(
+          node->create_publisher<franka_example_controllers::msg::JointTorqueComparison>(
+              "torque_comparison", 1));
   std::fill(dq_filtered_.begin(), dq_filtered_.end(), 0);
   return CallbackReturn::SUCCESS;
 }

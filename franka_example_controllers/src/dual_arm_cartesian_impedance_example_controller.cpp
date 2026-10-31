@@ -143,7 +143,9 @@ CallbackReturn DualArmCartesianImpedanceExampleController::on_configure(
   }
 
   // Setup publisher for the centering frame.
-  center_frame_pub_.init(node, "centering_frame", 1);
+    center_frame_pub_ =
+      std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::msg::PoseStamped>>(
+          node->create_publisher<geometry_msgs::msg::PoseStamped>("centering_frame", 1));
 
   return CallbackReturn::SUCCESS;
 }

@@ -197,14 +197,23 @@ CallbackReturn FrankaStateController::on_configure(const rclcpp_lifecycle::State
   }
 
   auto node = get_node();
-  publisher_transforms_.init(node, "/tf", 1);
-  publisher_franka_states_.init(node, "franka_states", 1);
-  publisher_joint_states_.init(node, "joint_states", 1);
-  publisher_joint_states_desired_.init(node, "joint_states_desired", 1);
-  publisher_external_wrench_.init(node, "F_ext", 1);
+  publisher_transforms_ = std::make_shared<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>(
+      node->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 1));
+  publisher_franka_states_ =
+      std::make_shared<realtime_tools::RealtimePublisher<franka_msgs::msg::FrankaState>>(
+          node->create_publisher<franka_msgs::msg::FrankaState>("franka_states", 1));
+  publisher_joint_states_ =
+      std::make_shared<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>(
+          node->create_publisher<sensor_msgs::msg::JointState>("joint_states", 1));
+  publisher_joint_states_desired_ =
+      std::make_shared<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>(
+          node->create_publisher<sensor_msgs::msg::JointState>("joint_states_desired", 1));
+  publisher_external_wrench_ =
+      std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped>>(
+          node->create_publisher<geometry_msgs::msg::WrenchStamped>("F_ext", 1));
 
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>> lock(
+    std::lock_guard<std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>> lock(
         publisher_joint_states_);
     publisher_joint_states_.msg_.name.resize(joint_names_.size());
     publisher_joint_states_.msg_.position.resize(robot_state_.q.size());
@@ -212,7 +221,7 @@ CallbackReturn FrankaStateController::on_configure(const rclcpp_lifecycle::State
     publisher_joint_states_.msg_.effort.resize(robot_state_.tau_J.size());
   }
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>> lock(
+    std::lock_guard<std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::JointState>>> lock(
         publisher_joint_states_desired_);
     publisher_joint_states_desired_.msg_.name.resize(joint_names_.size());
     publisher_joint_states_desired_.msg_.position.resize(robot_state_.q_d.size());
@@ -220,7 +229,7 @@ CallbackReturn FrankaStateController::on_configure(const rclcpp_lifecycle::State
     publisher_joint_states_desired_.msg_.effort.resize(robot_state_.tau_J_d.size());
   }
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>> lock(
+    std::lock_guard<std::shared_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>> lock(
         publisher_transforms_);
     publisher_transforms_.msg_.transforms.resize(2);
     tf2::Quaternion quaternion(0.0, 0.0, 0.0, 1.0);
@@ -234,7 +243,7 @@ CallbackReturn FrankaStateController::on_configure(const rclcpp_lifecycle::State
         toTransformStampedMsg(transform, node->now(), arm_id_ + "_EE", arm_id_ + "_K");
   }
   {
-    std::lock_guard<realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped>> lock(
+    std::lock_guard<std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::WrenchStamped>>> lock(
         publisher_external_wrench_);
     publisher_external_wrench_.msg_.header.frame_id = arm_id_ + "_K";
     publisher_external_wrench_.msg_.wrench.force.x = 0.0;
