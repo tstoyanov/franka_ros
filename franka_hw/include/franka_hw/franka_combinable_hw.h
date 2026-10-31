@@ -138,7 +138,7 @@ class FrankaCombinableHW : public FrankaHW {
   std::atomic_bool has_error_{false};
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr has_error_pub_;
   std::atomic_bool error_recovered_{false};
-  std::atomic_bool controller_needs_reset_{false};
+  mutable std::atomic_bool controller_needs_reset_{false};
 };
 
 }  // namespace franka_hw
