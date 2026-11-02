@@ -1,4 +1,5 @@
 joint_velocity_example_controller:
+  ros__parameters:
     type: franka_example_controllers/JointVelocityExampleController
     joint_names:
         - panda_joint1
@@ -8,8 +9,8 @@ joint_velocity_example_controller:
         - panda_joint5
         - panda_joint6
         - panda_joint7
-
 joint_position_example_controller:
+  ros__parameters:
     type: franka_example_controllers/JointPositionExampleController
     joint_names:
         - panda_joint1
@@ -19,24 +20,24 @@ joint_position_example_controller:
         - panda_joint5
         - panda_joint6
         - panda_joint7
-
 cartesian_pose_example_controller:
+  ros__parameters:
     type: franka_example_controllers/CartesianPoseExampleController
     arm_id: panda
-
 elbow_example_controller:
+  ros__parameters:
     type: franka_example_controllers/ElbowExampleController
     arm_id: panda
-
 cartesian_velocity_example_controller:
+  ros__parameters:
     type: franka_example_controllers/CartesianVelocityExampleController
     arm_id: panda
-
 model_example_controller:
+  ros__parameters:
     type: franka_example_controllers/ModelExampleController
     arm_id: panda
-
 force_example_controller:
+  ros__parameters:
     type: franka_example_controllers/ForceExampleController
     arm_id: panda
     joint_names:
@@ -47,8 +48,8 @@ force_example_controller:
         - panda_joint5
         - panda_joint6
         - panda_joint7
-
 joint_impedance_example_controller:
+  ros__parameters:
     type: franka_example_controllers/JointImpedanceExampleController
     arm_id: panda
     joint_names:
@@ -80,8 +81,8 @@ joint_impedance_example_controller:
     vel_max: 0.15
     publish_rate: 10.0
     coriolis_factor: 1.0
-
 cartesian_impedance_example_controller:
+  ros__parameters:
     type: franka_example_controllers/CartesianImpedanceExampleController
     arm_id: panda
     joint_names:
@@ -92,8 +93,8 @@ cartesian_impedance_example_controller:
         - panda_joint5
         - panda_joint6
         - panda_joint7
-
 cartesian_impedance_mod_controller:
+  ros__parameters:
     type: franka_example_controllers/CartesianImpedanceModController
     arm_id: panda
     joint_names:
@@ -105,6 +106,7 @@ cartesian_impedance_mod_controller:
         - panda_joint6
         - panda_joint7
 dual_arm_cartesian_impedance_example_controller:
+  ros__parameters:
     type: franka_example_controllers/DualArmCartesianImpedanceExampleController
     right:
         arm_id: panda_1
