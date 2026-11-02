@@ -4,8 +4,15 @@
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -14,20 +21,37 @@ def generate_launch_description():
     load_gripper = LaunchConfiguration("load_gripper")
     arm_id = LaunchConfiguration("arm_id")
 
+    xacro_file = PythonExpression(
+        [
+            "'",
+            PathJoinSubstitution(
+                [FindPackageShare("franka_description"), "robots", "panda_arm_hand.urdf.xacro"]
+            ),
+            "' if '",
+            load_gripper,
+            "' == 'true' else '",
+            PathJoinSubstitution(
+                [FindPackageShare("franka_description"), "robots", "panda_arm.urdf.xacro"]
+            ),
+            "'",
+        ]
+    )
     robot_description_content = Command(
         [
             FindExecutable(name="xacro"),
             " ",
-            PathJoinSubstitution(
-                [FindPackageShare("franka_description"), "robots", "panda_arm_hand.urdf.xacro"]
-            ),
+            xacro_file,
             " arm_id:=",
             arm_id,
             " robot_ip:=",
             robot_ip,
+            " load_gripper:=",
+            load_gripper,
         ]
     )
-    robot_description = {"robot_description": robot_description_content}
+    robot_description = {
+        "robot_description": ParameterValue(robot_description_content, value_type=str)
+    }
 
     controllers_file = PathJoinSubstitution(
         [FindPackageShare("franka_control"), "config", "default_controllers.yaml"]
